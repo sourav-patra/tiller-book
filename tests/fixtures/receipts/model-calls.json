@@ -1,0 +1,17 @@
+{
+  "schema_version": "0.1",
+  "unit": "U7",
+  "runner": {"agent": "claude-code", "model": "claude-sonnet-5-5", "session": "example-1"},
+  "commits": {"start": "1111111111111111111111111111111111111111", "head": "2222222222222222222222222222222222222222"},
+  "model_calls": [
+    {"model": "claude-sonnet-5-5", "input_tokens": 182000, "output_tokens": 9400, "cost_usd": 0.69},
+    {"model": "claude-haiku-5-5", "input_tokens": 12000, "output_tokens": 800, "cost_usd": 0.02}
+  ],
+  "checks": [
+    {"name": "tests", "command": "python -m pytest -q", "status": "PASS", "exit_code": 0},
+    {"name": "path-scope", "command": "tlb check path-scope", "status": "PASS", "exit_code": 0}
+  ],
+  "refusals": [],
+  "evidence": [{"location": "https://github.com/example/repo/actions/runs/1", "what": "CI run on the head commit"}],
+  "not_measured": []
+}

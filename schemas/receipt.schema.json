@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sourav-patra/tiller-book/schemas/receipt.schema.json",
+  "title": "tiller-book receipt",
+  "description": "What happened in one unit, computed once when the work finishes. Unknown fields fail; the schema grows only by a schema_version bump.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "unit", "runner", "commits", "model_calls", "checks", "refusals", "evidence", "not_measured"],
+  "properties": {
+    "schema_version": {"const": "0.1"},
+    "unit": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"},
+    "runner": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agent"],
+      "properties": {
+        "agent": {"type": "string", "minLength": 1},
+        "model": {"type": "string", "minLength": 1},
+        "session": {"type": "string", "minLength": 1}
+      }
+    },
+    "commits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "head"],
+      "properties": {
+        "start": {"$ref": "#/$defs/sha"},
+        "head": {"$ref": "#/$defs/sha"}
+      }
+    },
+    "model_calls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["model", "input_tokens", "output_tokens", "cost_usd"],
+        "properties": {
+          "model": {"type": "string", "minLength": 1},
+          "input_tokens": {"type": "integer", "minimum": 0},
+          "output_tokens": {"type": "integer", "minimum": 0},
+          "cost_usd": {
+            "description": "null means not measured; pair it with a not_measured entry naming the command that would measure it.",
+            "type": ["number", "null"],
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "command", "status", "exit_code"],
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "command": {"type": "string", "minLength": 1},
+          "status": {"enum": ["PASS", "FAIL", "NOT_RUN"]},
+          "exit_code": {"type": ["integer", "null"]},
+          "reason": {"type": "string", "minLength": 1}
+        },
+        "allOf": [
+          {
+            "if": {"properties": {"status": {"const": "NOT_RUN"}}},
+            "else": {"properties": {"exit_code": {"type": "integer"}}}
+          },
+          {
+            "if": {"properties": {"status": {"const": "PASS"}}},
+            "else": {"required": ["reason"]}
+          }
+        ]
+      }
+    },
+    "refusals": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["what", "blocked_by", "reason"],
+        "properties": {
+          "what": {"type": "string", "minLength": 1},
+          "blocked_by": {"type": "string", "minLength": 1},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["location", "what"],
+        "properties": {
+          "location": {"type": "string", "minLength": 1},
+          "what": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "not_measured": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["claim", "command"],
+        "properties": {
+          "claim": {"type": "string", "minLength": 1},
+          "command": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+  }
+}
