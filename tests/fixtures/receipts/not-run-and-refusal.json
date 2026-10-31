@@ -1,0 +1,15 @@
+{
+  "schema_version": "0.1",
+  "unit": "U8",
+  "runner": {"agent": "codex"},
+  "commits": {"start": "1111111111111111111111111111111111111111", "head": "2222222222222222222222222222222222222222"},
+  "model_calls": [],
+  "checks": [
+    {"name": "tests", "command": "python -m pytest -q", "status": "PASS", "exit_code": 0},
+    {"name": "leak-scan", "command": "gitleaks dir .", "status": "NOT_RUN", "exit_code": null, "reason": "gitleaks not on PATH"},
+    {"name": "lint", "command": "ruff check .", "status": "FAIL", "exit_code": 1, "reason": "E501 in tiller_book/cli.py line 12"}
+  ],
+  "refusals": [{"what": "write .github/workflows/ci.yml", "blocked_by": "path-scope", "reason": "path is outside plans/U8.toml allowed_paths"}],
+  "evidence": [{"location": "receipts/U8.log", "what": "full check output"}],
+  "not_measured": []
+}

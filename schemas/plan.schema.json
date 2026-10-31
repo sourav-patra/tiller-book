@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/sourav-patra/tiller-book/schemas/plan.schema.json",
+  "title": "tiller-book plan",
+  "description": "One plan per unit, stored as plans/<id>.toml. A unit writes only inside allowed_paths.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title", "allowed_paths", "min_held_out_cases"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "allowed_paths": {
+      "description": "Relative POSIX paths. An entry ending in / is a directory prefix; any other entry is one exact file. No globs, no '..', no leading /.",
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^(?!.*\\.\\.)[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*/?$"
+      }
+    },
+    "min_held_out_cases": {
+      "description": "Minimum held-out cases for a measurement; the v0.1 default is 20. v0.1 records it and runs no measurement.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "model_calls": {
+      "description": "Names of the model calls the unit may make. A call not listed stops the unit for the owner.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    }
+  }
+}
