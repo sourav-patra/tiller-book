@@ -1,0 +1,13 @@
+id = "U1"
+title = "Plan format, plan verify and receipt schema (SCOPE items 1 and 2)"
+allowed_paths = [
+  "schemas/",
+  "tiller_book/plan/",
+  "tests/",
+  "pyproject.toml",
+  "tiller_book/__init__.py",
+  "tiller_book/cli.py",
+  "receipts/U1.json",
+]
+min_held_out_cases = 20
+model_calls = []
