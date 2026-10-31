@@ -1,0 +1,97 @@
+{
+  "schema_version": "0.1",
+  "unit": "U2",
+  "runner": {
+    "agent": "claude-code",
+    "model": "claude-opus-5-5"
+  },
+  "commits": {
+    "start": "dcc674d5b91cd9ff5d7d74889da2816d5dd0bdc9",
+    "head": "af51abae7cbf76693db167267e29076e5f294aa1"
+  },
+  "model_calls": [],
+  "checks": [
+    {
+      "name": "tests",
+      "command": "python -m pytest -q",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "59 passed"
+    },
+    {
+      "name": "check run on the repository",
+      "command": "tlb check run",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "tests and leak-scan PASS"
+    },
+    {
+      "name": "plan verify U2 on plan/U2",
+      "command": "tlb plan verify U2 --ref plan/U2",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0; plans/U2.toml is in pull request 2 and not yet on origin/main"
+    },
+    {
+      "name": "path scope against plans/U2.toml",
+      "command": "git diff --name-only dcc674d HEAD, each path matched against allowed_paths",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "leak scan",
+      "command": "gitleaks git .",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "deny-list",
+      "command": ".git/hooks/pre-push",
+      "status": "PASS",
+      "exit_code": 0
+    },
+    {
+      "name": "independent review round one (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit cfa2fc6",
+      "status": "FAIL",
+      "exit_code": 0,
+      "reason": "four findings: unencodable output crashed the report, aggregate accepted mismatched results, malformed commands escaped handling, PASS had no reason; all closed in af51aba"
+    },
+    {
+      "name": "independent review round two (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit af51aba",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "all four round-one findings closed; no new findings"
+    }
+  ],
+  "refusals": [],
+  "evidence": [
+    {
+      "location": "owner notes store, U2 review, round one",
+      "what": "review round one verdict and findings"
+    },
+    {
+      "location": "owner notes store, U2 review, round two",
+      "what": "review round two verdict"
+    }
+  ],
+  "not_measured": [
+    {
+      "claim": "model tokens and cost of the Claude Code session that built U2",
+      "command": "/cost in that Claude Code session"
+    },
+    {
+      "claim": "review rounds one and two used 30,325 and 32,374 tokens in total by the codex log; the input and output split and the cost were not recorded",
+      "command": "rerun the review with codex exec --json and read the usage fields"
+    },
+    {
+      "claim": "an independent run of the full test suite; the reviewer's sandbox could not create temporary folders, so it ran tests/test_checks.py alone (19 passed)",
+      "command": "the CI test job from U4 on the head commit"
+    },
+    {
+      "claim": "review identity from a CI run on the head commit; the floor is not yet in force for U2",
+      "command": "the review-identity check from U3 once U4's review job exists"
+    }
+  ]
+}
