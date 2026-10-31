@@ -2,6 +2,7 @@
 
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -85,7 +86,7 @@ def test_signed_plan_on_pull_request_head_with_signers_from_main_passes(repo, ke
 def test_unsigned_plan_fails(repo, capsys):
     commit(repo, {"plans/U9.toml": PLAN}, "plan")
     assert run(repo) == 1
-    assert "signature status N" in capsys.readouterr().out
+    assert "carries no SSH signature" in capsys.readouterr().out
 
 
 def test_branch_only_plan_fails(repo, keys, capsys):
@@ -155,3 +156,62 @@ def test_missing_ssh_keygen_fails_with_reason(repo, keys, capsys, monkeypatch):
 
 def test_invalid_plan_id_fails(repo):
     assert run(repo, plan_id="../U9") == 1
+
+
+@pytest.mark.skipif(shutil.which("gpg") is None, reason="needs gpg")
+def test_trusted_openpgp_signature_fails(repo, monkeypatch, capsys):
+    # A short home: gpg-agent's socket path breaks under pytest's deep tmp_path.
+    home = Path(tempfile.mkdtemp(prefix="g")).resolve()
+    # Git for Windows ships an MSYS gpg, which reads GNUPGHOME only as a POSIX path.
+    monkeypatch.setenv("GNUPGHOME", f"/{home.drive[0].lower()}{home.as_posix()[2:]}" if home.drive else str(home))
+    try:
+        _sign_plan_with_trusted_openpgp_key(repo)
+        assert run(repo) == 1
+        assert "carries no SSH signature" in capsys.readouterr().out
+    finally:
+        subprocess.run(["gpgconf", "--kill", "gpg-agent"], capture_output=True)
+        shutil.rmtree(home, ignore_errors=True)
+
+
+def _sign_plan_with_trusted_openpgp_key(repo):
+    subprocess.run(["gpg", "--batch", "--passphrase", "", "--quick-gen-key", PRINCIPAL, "ed25519", "sign", "never"],
+                   check=True, capture_output=True)
+    (repo / "plans").mkdir()
+    (repo / "plans/U9.toml").write_text(PLAN, newline="\n")
+    git(repo, "add", "-A")
+    git(repo, "-c", "gpg.format=openpgp", "-c", f"user.signingkey={PRINCIPAL}", "commit", "-S", "-q", "-m", "plan")
+    assert git(repo, "log", "-1", "--format=%G?").strip() == "G"  # git itself trusts it
+
+
+def test_shallow_clone_fails_with_reason(repo, keys, tmp_path, capsys):
+    commit(repo, {"plans/U9.toml": PLAN}, "plan", keys["owner"])
+    shallow = tmp_path / "shallow"
+    subprocess.run(["git", "clone", "-q", "--depth", "1", repo.resolve().as_uri(), str(shallow)],
+                   check=True, capture_output=True)
+    assert run(shallow, ref="origin/main", signers_ref="origin/main") == 1
+    assert "shallow clone" in capsys.readouterr().out
+
+
+def test_failed_blob_lookup_fails(repo, keys, monkeypatch, capsys):
+    commit(repo, {"plans/U9.toml": PLAN}, "plan", keys["owner"])
+    real = verify._blob
+    monkeypatch.setattr(verify, "_blob", lambda r, rev, path: None if rev != "main" else real(r, rev, path))
+    assert run(repo) == 1
+    assert "could not run: git could not read" in capsys.readouterr().out
+
+
+def test_git_that_cannot_start_fails_with_reason(repo, monkeypatch, capsys):
+    def no_git(*args, **kwargs):
+        raise FileNotFoundError("git")
+    monkeypatch.setattr(verify.subprocess, "run", no_git)
+    assert run(repo) == 1
+    assert "could not run" in capsys.readouterr().out
+
+
+def test_unwritable_temp_dir_fails_with_reason(repo, keys, monkeypatch, capsys):
+    commit(repo, {"plans/U9.toml": PLAN}, "plan", keys["owner"])
+    def denied(*args, **kwargs):
+        raise PermissionError("temp dir denied")
+    monkeypatch.setattr(verify.tempfile, "TemporaryDirectory", denied)
+    assert run(repo) == 1
+    assert "could not write a temporary allowed_signers file" in capsys.readouterr().out

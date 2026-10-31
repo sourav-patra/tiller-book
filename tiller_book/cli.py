@@ -21,7 +21,7 @@ def main(argv=None):
 
     try:
         problems = verify_plan(Path(args.repo), args.id, args.ref, args.signers_ref)
-    except CouldNotRun as e:
+    except (CouldNotRun, OSError) as e:
         problems = [f"could not run: {e}"]
     for p in problems:
         print(f"FAIL: {p}")

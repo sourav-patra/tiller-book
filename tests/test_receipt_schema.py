@@ -34,9 +34,17 @@ def test_examples_validate(path):
     assert errors(load(path)) == []
 
 
-def test_unit_receipts_validate():
-    for path in sorted((ROOT / "receipts").glob("*.json")):
-        assert errors(load(path)) == [], path.name
+@pytest.mark.parametrize("path", sorted((ROOT / "receipts").glob("*.json")), ids=lambda p: p.stem)
+def test_unit_receipts_validate(path):
+    # A unit's receipt arrives in its last, receipt-only commit; before that this test reports an empty set.
+    assert errors(load(path)) == []
+
+
+def test_null_cost_needs_a_not_measured_entry():
+    receipt = load(ROOT / "tests/fixtures/receipts/cost-not-measured.json")
+    assert errors(receipt) == []
+    receipt["not_measured"] = []
+    assert errors(receipt)
 
 
 def broken(change):

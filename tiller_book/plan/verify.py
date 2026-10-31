@@ -26,7 +26,10 @@ class CouldNotRun(Exception):
 
 
 def _git(repo, *args):
-    r = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, encoding="utf-8")
+    try:
+        r = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True, encoding="utf-8")
+    except OSError as e:
+        raise CouldNotRun(f"git {args[0]} could not start: {e}") from e
     return r.returncode, r.stdout, r.stderr.strip()
 
 
@@ -38,6 +41,15 @@ def _show(repo, ref, path):
 def _blob(repo, rev, path):
     code, out, _ = _git(repo, "rev-parse", f"{rev}:{path}")
     return out.strip() if code == 0 else None
+
+
+def _is_ssh_signed(repo, commit):
+    """True only for an SSH signature; git also reports an OpenPGP signature trusted by the local keyring as G."""
+    code, out, err = _git(repo, "cat-file", "commit", commit)
+    if code != 0:
+        raise CouldNotRun(f"git could not read commit {commit[:12]}: {err}")
+    header = out.split("\n\n", 1)[0]
+    return "\ngpgsig -----BEGIN SSH SIGNATURE-----" in "\n" + header
 
 
 def signed_on_ref(repo, path, ref="origin/main", signers_ref="origin/main"):
@@ -61,14 +73,24 @@ def signed_on_ref(repo, path, ref="origin/main", signers_ref="origin/main"):
         return [f"no non-merge commit on {ref} changed {path} {err}".rstrip()]
 
     problems = []
-    if _blob(repo, commit, path) != _blob(repo, ref, path):
+    written, current = _blob(repo, commit, path), _blob(repo, ref, path)
+    if written is None or current is None:
+        raise CouldNotRun(f"git could not read {path} at {commit[:12]} or at {ref}")
+    if written != current:
         problems.append(f"{path} at {ref} differs from what commit {commit[:12]} wrote; a merge rewrote it")
 
-    with tempfile.TemporaryDirectory() as d:
-        signers_file = Path(d) / "allowed_signers"
-        signers_file.write_text(signers, encoding="utf-8", newline="\n")
-        code, out, err = _git(repo, "-c", f"gpg.ssh.allowedSignersFile={signers_file.as_posix()}",
-                              "log", "-1", "--format=%G?", commit)
+    if not _is_ssh_signed(repo, commit):
+        problems.append(f"commit {commit[:12]}, which last changed {path}, carries no SSH signature; "
+                        f"only keys in {SIGNERS} count")
+        return problems
+    try:
+        with tempfile.TemporaryDirectory() as d:
+            signers_file = Path(d) / "allowed_signers"
+            signers_file.write_text(signers, encoding="utf-8", newline="\n")
+            code, out, err = _git(repo, "-c", f"gpg.ssh.allowedSignersFile={signers_file.as_posix()}",
+                                  "log", "-1", "--format=%G?", commit)
+    except OSError as e:
+        raise CouldNotRun(f"could not write a temporary allowed_signers file: {e}") from e
     status = out.strip()
     if code != 0:
         raise CouldNotRun(f"git could not read the signature of {commit[:12]}: {err}")
