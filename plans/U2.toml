@@ -1,0 +1,10 @@
+id = "U2"
+title = "Checker runner and fail-closed aggregator (SCOPE item 3)"
+allowed_paths = [
+  "tiller_book/checks/",
+  "tests/",
+  "tiller_book/cli.py",
+  "receipts/U2.json",
+]
+min_held_out_cases = 20
+model_calls = []
