@@ -1,5 +1,6 @@
 """tlb check run: each check is PASS, FAIL or NOT_RUN, and the aggregate fails closed."""
 
+import io
 import json
 import sys
 from pathlib import Path
@@ -19,7 +20,7 @@ def ok(name="ok", required=True):
 
 
 def fails(name="bad", required=True):
-    return Check(name, (PY, "-c", "import sys; print('first'); print('last words'); sys.exit(3)"), required=required)
+    return Check(name, (PY, "-c", "import sys; print('first'); print('last words'); sys.exit(1)"), required=required)
 
 
 def missing_tool(name="needs-tool"):
@@ -35,13 +36,13 @@ def run(checks, monkeypatch, capsys, *args):
 
 def test_pass():
     r = run_check(ok())
-    assert (r["status"], r["exit_code"]) == ("PASS", 0)
+    assert (r["status"], r["exit_code"], r["reason"]) == ("PASS", 0, "exit 0")
 
 
 def test_fail_names_exit_code_and_last_line():
     r = run_check(fails())
-    assert (r["status"], r["exit_code"]) == ("FAIL", 3)
-    assert r["reason"] == "exit 3: last words"
+    assert (r["status"], r["exit_code"]) == ("FAIL", 1)
+    assert r["reason"] == "exit 1: last words"
 
 
 def test_fail_with_no_output():
@@ -76,7 +77,7 @@ def test_all_required_pass_exits_0(monkeypatch, capsys):
 def test_one_required_fail_exits_1(monkeypatch, capsys):
     code, out, _ = run([ok("a"), fails("b")], monkeypatch, capsys)
     assert code == 1
-    assert "FAIL b: exit 3: last words" in out
+    assert "FAIL b: exit 1: last words" in out
     assert "FAIL: required checks not PASS: b" in out
 
 
@@ -97,7 +98,7 @@ def test_timeout_fails_aggregate(monkeypatch, capsys):
 def test_optional_fail_does_not_decide(monkeypatch, capsys):
     code, out, _ = run([ok("a"), fails("opt", required=False)], monkeypatch, capsys)
     assert code == 0
-    assert "FAIL opt (optional): exit 3: last words" in out
+    assert "FAIL opt (optional): exit 1: last words" in out
 
 
 def test_no_required_checks_exits_1(monkeypatch, capsys):
@@ -116,7 +117,39 @@ def test_json_items_validate_as_receipt_checks(monkeypatch, capsys):
     items = json.loads(out)
     assert code == 1 and "FAIL: required checks not PASS: b, c, ghost" in err
     assert [i["status"] for i in items] == ["PASS", "FAIL", "NOT_RUN", "NOT_RUN"]
+    assert items[0]["reason"] == "exit 0"
     assert list(CHECKS_SCHEMA.iter_errors(items)) == []
+
+
+def test_every_result_kind_validates_including_malformed_commands():
+    checks = [ok(), fails(), missing_tool(), Check("slow", (PY, "-c", "import time; time.sleep(30)"), timeout=0.5),
+              Check("ghost", ("tlb-no-such-binary-xyz",)), Check("empty", ()), Check("nul", (PY, "-c", "pass\0"))]
+    results = [run_check(c) for c in checks]
+    assert [r["status"] for r in results] == ["PASS", "FAIL", "NOT_RUN", "NOT_RUN", "NOT_RUN", "NOT_RUN", "NOT_RUN"]
+    assert list(CHECKS_SCHEMA.iter_errors(results)) == []
+
+
+def test_malformed_command_fails_aggregate_without_traceback(monkeypatch, capsys):
+    code, out, err = run([ok("a"), Check("nul", (PY, "-c", "pass\0"))], monkeypatch, capsys, "--json")
+    assert code == 1 and "FAIL: required checks not PASS: nul" in err
+
+
+def test_missing_or_mismatched_results_fail():
+    a, b = ok("a"), ok("b")
+    passed = {"name": "a", "command": "x", "status": "PASS", "exit_code": 0, "reason": "exit 0"}
+    assert aggregate([a, b], [passed])[0] == 1
+    assert aggregate([b], [passed]) == (1, "FAIL: results do not match the registered checks")
+
+
+def test_unencodable_output_prints_on_a_cp1252_console(monkeypatch):
+    raw = io.BytesIO()
+    monkeypatch.setattr(sys, "stdout", io.TextIOWrapper(raw, encoding="cp1252"))
+    monkeypatch.setattr(registry, "CHECKS", [Check("bytes", (PY, "-c", "import sys; sys.stdout.buffer.write(b'bad \\xff'); sys.exit(1)"))])
+    code = cli.main(["check", "run"])
+    sys.stdout.flush()
+    out = raw.getvalue().decode("cp1252")
+    assert code == 1
+    assert "FAIL bytes: exit 1: bad" in out and "FAIL: required checks not PASS: bytes" in out
 
 
 def test_registry_holds_tests_and_leak_scan_both_required():

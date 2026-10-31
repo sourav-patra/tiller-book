@@ -45,6 +45,8 @@ def check_run(repo, as_json):
     if as_json:
         print(json.dumps(results, indent=2))
     else:
+        if hasattr(sys.stdout, "reconfigure"):  # check output may hold characters the console code page cannot encode
+            sys.stdout.reconfigure(errors="backslashreplace")
         for c, r in zip(registry.CHECKS, results):
             print(line(c, r))
     print(verdict, file=sys.stderr if as_json else sys.stdout)

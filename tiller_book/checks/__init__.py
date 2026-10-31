@@ -17,7 +17,9 @@ class Check:
 
 def run_check(check, cwd="."):
     """Return a dict shaped like a receipt checks[] item."""
-    result = {"name": check.name, "command": shlex.join(check.command)}
+    result = {"name": check.name, "command": shlex.join(map(str, check.command)) or "(empty command)"}
+    if not check.command:
+        return {**result, "status": "NOT_RUN", "exit_code": None, "reason": "empty command"}
     missing = [t for t in check.tools if shutil.which(t) is None]
     if missing:
         return {**result, "status": "NOT_RUN", "exit_code": None, "reason": f"tool not on PATH: {', '.join(missing)}"}
@@ -26,10 +28,10 @@ def run_check(check, cwd="."):
                            encoding="utf-8", errors="replace", timeout=check.timeout)
     except subprocess.TimeoutExpired:
         return {**result, "status": "NOT_RUN", "exit_code": None, "reason": f"timed out after {check.timeout} s"}
-    except OSError as e:
+    except (OSError, ValueError, TypeError) as e:
         return {**result, "status": "NOT_RUN", "exit_code": None, "reason": f"could not start: {e}"}
     if p.returncode == 0:
-        return {**result, "status": "PASS", "exit_code": 0}
+        return {**result, "status": "PASS", "exit_code": 0, "reason": "exit 0"}
     lines = [line.strip() for line in (p.stdout + "\n" + p.stderr).splitlines() if line.strip()]
     last = lines[-1] if lines else "no output"
     return {**result, "status": "FAIL", "exit_code": p.returncode, "reason": f"exit {p.returncode}: {last}"}
@@ -37,6 +39,8 @@ def run_check(check, cwd="."):
 
 def aggregate(checks, results):
     """Return (exit code, verdict line). Exit 0 only if at least one required check ran and all required checks PASS."""
+    if len(checks) != len(results) or any(c.name != r["name"] for c, r in zip(checks, results)):
+        return 1, "FAIL: results do not match the registered checks"
     required = [r for c, r in zip(checks, results) if c.required]
     if not required:
         return 1, "FAIL: no required checks, nothing was checked"
@@ -48,4 +52,4 @@ def aggregate(checks, results):
 
 def line(check, result):
     tag = "" if check.required else " (optional)"
-    return f"{result['status']} {result['name']}{tag}: {result.get('reason', 'exit 0')}"
+    return f"{result['status']} {result['name']}{tag}: {result['reason']}"
