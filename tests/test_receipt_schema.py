@@ -68,3 +68,8 @@ def broken(change):
 ])
 def test_broken_receipts_fail(name, change):
     assert errors(broken(change)), name
+
+
+def test_u1_receipt_exists():
+    # U1 acceptance check 4; later units add their own receipt to receipts/.
+    assert (ROOT / "receipts/U1.json").is_file()
