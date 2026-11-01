@@ -243,6 +243,31 @@ def test_term_in_a_path_name_is_counted(repo, denylist, capsys):
         "FAIL deny-list: 0 matching lines in 0 files at HEAD, ")
 
 
+def test_replaced_blob_is_scanned_as_stored(repo, denylist, capsys, tmp_path):
+    commit(repo, {"notes.txt": f"{TERM}\n"}, "add")
+    publish(repo)
+    stored = git(repo, "rev-parse", "HEAD:notes.txt").strip()
+    cover = tmp_path / "cover.txt"
+    cover.write_text("clean\n", newline="\n")
+    git(repo, "replace", stored, git(repo, "hash-object", "-w", str(cover)).strip())
+    assert git(repo, "show", "HEAD:notes.txt") == "clean\n"  # git itself now shows the replacement
+    fails(repo, denylist, capsys, "deny-list")
+
+
+def test_name_of_a_renamed_file_with_unchanged_content_is_counted(repo, denylist, capsys):
+    commit(repo, {f"{TERM}.txt": "clean\n"}, "add")
+    git(repo, "mv", f"{TERM}.txt", "clean.txt")
+    git(repo, "commit", "-q", "-m", "rename")
+    publish(repo)
+    assert fails(repo, denylist, capsys, "deny-list").startswith(
+        "FAIL deny-list: 0 matching lines in 0 files at HEAD, 1 matching lines across ")
+
+
+def test_term_in_a_branch_name_is_counted(repo, denylist, capsys):
+    git(repo, "branch", f"{TERM}-work")
+    fails(repo, denylist, capsys, "deny-list")
+
+
 def test_object_only_in_the_reflog_is_not_scanned(repo, denylist, capsys):
     commit(repo, {"notes.txt": f"{TERM}\n"}, "dropped before publishing")
     git(repo, "reset", "-q", "--hard", "HEAD~1")
@@ -308,6 +333,27 @@ def test_personal_tagger_address_fails_without_the_address(repo, denylist, capsy
         "FAIL identities: 1 of 2 author, committer and tagger addresses")
 
 
+def tag_chain(repo, inner_message, inner_email=NOREPLY, depth=3):
+    """Tag a tag a tag; only the outermost tag keeps a ref."""
+    git(repo, "-c", f"user.email={inner_email}", "tag", "-a", "level1", "-m", inner_message)
+    for n in range(2, depth + 1):
+        git(repo, "-c", "advice.nestedTag=false", "tag", "-a", f"level{n}", f"level{n - 1}", "-m", f"level {n}")
+    git(repo, "tag", "-d", *[f"level{n}" for n in range(1, depth)])
+
+
+def test_personal_tagger_on_an_inner_tag_fails(repo, denylist, capsys):
+    tag_chain(repo, "inner", inner_email=ADDR, depth=2)
+    assert git(repo, "for-each-ref", "--format=%(refname)", "refs/tags") == "refs/tags/level2\n"
+    assert "1 of 2 author, committer and tagger addresses" in fails(repo, denylist, capsys, "identities")
+
+
+def test_personal_tagger_under_another_ref_namespace_fails(repo, denylist, capsys):
+    git(repo, "-c", f"user.email={ADDR}", "tag", "-a", "archived", "-m", "old")
+    git(repo, "update-ref", "refs/archive/inner", git(repo, "rev-parse", "refs/tags/archived").strip())
+    git(repo, "tag", "-d", "archived")
+    assert "1 of 2 author, committer and tagger addresses" in fails(repo, denylist, capsys, "identities")
+
+
 def test_noreply_tagger_and_lightweight_tag_pass_identities(repo, denylist, capsys):
     git(repo, "-c", "user.email=noreply@github.com", "tag", "-a", "v1", "-m", "release")
     git(repo, "tag", "light")
@@ -331,6 +377,15 @@ def test_leaked_secret_in_a_commit_fails_leak_scan(repo, denylist, capsys):
 def test_leaked_secret_in_an_annotated_tag_message_fails_leak_scan(repo, denylist, capsys):
     secret = token()
     git(repo, "tag", "-a", "v1", "-m", f"token = {secret}")
+    code, out = run(repo, denylist, capsys)
+    assert step(out, "leak-scan").startswith("FAIL leak-scan: gitleaks git exit 0, gitleaks dir exit 1"), out
+    assert secret not in out
+
+
+@needs_gitleaks
+def test_leaked_secret_in_the_innermost_of_three_tags_fails_leak_scan(repo, denylist, capsys):
+    secret = token()
+    tag_chain(repo, f"token = {secret}")
     code, out = run(repo, denylist, capsys)
     assert step(out, "leak-scan").startswith("FAIL leak-scan: gitleaks git exit 0, gitleaks dir exit 1"), out
     assert secret not in out

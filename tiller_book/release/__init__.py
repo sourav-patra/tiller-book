@@ -6,6 +6,7 @@ Every step that cannot run is a FAIL, never a skip.
 """
 
 import hashlib
+import os
 import re
 import shutil
 import subprocess
@@ -18,6 +19,7 @@ from tiller_book.plan.verify import _git, signed_on_ref
 
 REF = "origin/main"
 LOCK = "locks/VISION.md.sha256"
+NO_REPLACE = "GIT_NO_REPLACE_OBJECTS"
 
 
 class StepFailed(Exception):
@@ -66,6 +68,7 @@ def _patterns(path):
     return patterns
 
 
+TAGGER = re.compile(rb"^tagger [^\n]*<([^>\n]*)>", re.M)
 TAG_SIGNATURE = re.compile(rb"\n-----BEGIN (PGP|SSH) SIGNATURE-----\n.*-----END \1 SIGNATURE-----\n?", re.S)
 
 
@@ -87,26 +90,44 @@ def _without_tag_signature(tag):
     return tag
 
 
-def _reachable_text(repo):
-    """Return (object count, the text to grep): every object reachable from a ref, without the reflog.
-
-    Commits lose their gpgsig header and tags a trailing signature block; blobs are kept in full;
-    trees are binary, so their path names stand in for them.
-    """
-    listing = _git_bytes(repo, "rev-list", "--objects", "--all")
-    rows = [line.split(b" ", 1) for line in listing.splitlines()]
-    code, out = _bytes(["git", "-C", str(repo), "cat-file", "--batch"], input=b"".join(r[0] + b"\n" for r in rows))
+def _reachable(repo):
+    """Return [(id, type, raw content)] for every object reachable from a ref, without the reflog."""
+    ids = _git_bytes(repo, "rev-list", "--objects", "--all", "--no-object-names").split()
+    code, out = _bytes(["git", "-C", str(repo), "cat-file", "--batch"], input=b"".join(i + b"\n" for i in ids))
     if code != 0:
         raise StepFailed(f"git cat-file exited {code}")
     # shortcut: holds every reachable object in memory; stream it if the repository grows past a few hundred MB.
-    parts, pos = [r[1] for r in rows if len(r) == 2], 0
-    for _ in rows:
+    objects, pos = [], 0
+    for oid in ids:
         nl = out.index(b"\n", pos)
         fields = out[pos:nl].split()
-        if len(fields) != 3:
+        if len(fields) != 3 or fields[0] != oid:
             raise StepFailed("git cat-file could not read a reachable object")
-        kind, size = fields[1], int(fields[2])
-        body, pos = out[nl + 1:nl + 1 + size], nl + 2 + size
+        size = int(fields[2])
+        objects.append((oid, fields[1], out[nl + 1:nl + 1 + size]))
+        pos = nl + 2 + size
+    return objects
+
+
+def _tree_names(oid, body):
+    """Entry names of a raw tree: repeated `<mode> <name>NUL<binary id>`."""
+    names, pos, idlen = [], 0, len(oid) // 2
+    while pos < len(body):
+        nul = body.index(b"\0", pos)
+        names.append(body[body.index(b" ", pos) + 1:nul])
+        pos = nul + 1 + idlen
+    return names
+
+
+def _reachable_text(repo):
+    """Return (object count, the text to grep).
+
+    Commits lose their gpgsig header and tags a trailing signature block; blobs are kept in full;
+    trees are binary, so the entry names of every tree stand in for them; ref names are added.
+    """
+    objects = _reachable(repo)
+    parts = _git_bytes(repo, "for-each-ref", "--format=%(refname)").splitlines()
+    for oid, kind, body in objects:
         # Signatures are skipped to avoid chance hits in base64; limit: a crafted fake signature can hide text.
         if kind == b"commit":
             parts.append(_without_gpgsig(body))
@@ -114,7 +135,9 @@ def _reachable_text(repo):
             parts.append(_without_tag_signature(body))
         elif kind == b"blob":
             parts.append(body)
-    return len(rows), b"\n".join(parts) + b"\n"
+        elif kind == b"tree":
+            parts.extend(_tree_names(oid, body))
+    return len(objects), b"\n".join(parts) + b"\n"
 
 
 def denylist(repo, path):
@@ -143,11 +166,9 @@ def identities(repo):
     code, out, _ = _git(repo, "log", "--all", "--format=%ae%n%ce")
     if code != 0:
         raise StepFailed(f"git log exited {code}")
-    code, tags, _ = _git(repo, "for-each-ref", "--format=%(taggeremail)", "refs/tags")
-    if code != 0:
-        raise StepFailed(f"git for-each-ref exited {code}")
-    taggers = {t.strip().removeprefix("<").removesuffix(">") for t in tags.splitlines() if t.strip()}
-    seen = set(out.splitlines()) | taggers  # a lightweight tag has no tagger and gives an empty line
+    headers = (body.partition(b"\n\n")[0] for _, kind, body in _reachable(repo) if kind == b"tag")
+    taggers = {m.group(1).decode("utf-8", "replace") for h in headers for m in TAGGER.finditer(h)}
+    seen = set(out.splitlines()) | taggers
     bad = [a for a in seen if a != "noreply@github.com" and not a.endswith("@users.noreply.github.com")]
     what = "author, committer and tagger addresses"
     if bad:
@@ -156,18 +177,20 @@ def identities(repo):
 
 
 def leak_scan(repo):
-    """gitleaks git . reads commits only, so tag objects and refs to blobs or trees are scanned as files too."""
+    """gitleaks git . reads commits only, so every reachable tag object and every non-commit object a ref
+    points at (directly or through one tag) is scanned as a file too."""
     if shutil.which("gitleaks") is None:
         raise StepFailed("gitleaks not on PATH")
+    loose = {oid: body for oid, kind, body in _reachable(repo) if kind == b"tag"}
     refs = _git_bytes(repo, "for-each-ref", "--format=%(objectname) %(objecttype) %(*objectname) %(*objecttype)")
-    loose = set()
     for fields in (line.split() for line in refs.splitlines()):
-        pairs = zip(fields[0::2], fields[1::2])
-        loose |= {oid for oid, kind in pairs if kind != b"commit"}
+        for oid, kind in zip(fields[0::2], fields[1::2]):
+            if kind not in (b"commit", b"tag"):
+                loose[oid] = _raw(repo, oid)
     code_git, _ = _bytes(["gitleaks", "git", "."], cwd=repo, timeout=300)
     with tempfile.TemporaryDirectory() as d:
-        for oid in loose:
-            (Path(d) / oid.decode("ascii")).write_bytes(_raw(repo, oid))
+        for oid, body in loose.items():
+            (Path(d) / oid.decode("ascii")).write_bytes(body)
         code_dir, _ = _bytes(["gitleaks", "dir", d], timeout=300)
     reason = f"gitleaks git exit {code_git}, gitleaks dir exit {code_dir} ({len(loose)} tag or non-commit objects)"
     return code_git == 0 and code_dir == 0, reason
@@ -205,13 +228,20 @@ def gate(repo, denylist_path):
     steps = [("head", head_is_main), ("deny-list", partial(denylist, path=denylist_path)),
              ("identities", identities), ("leak-scan", leak_scan), ("vision-lock", vision_lock),
              ("checks", checks)]
-    results = []
-    for name, step in steps:
-        try:
-            ok, reason = step(repo)
-        except StepFailed as e:
-            ok, reason = False, f"could not run: {e}"
-        except Exception as e:  # noqa: BLE001 -- the gate reports, it never shows a traceback or exception text
-            ok, reason = False, f"could not run: {type(e).__name__} in {name}"
-        results.append((name, ok, reason))
+    results, saved = [], os.environ.get(NO_REPLACE)
+    os.environ[NO_REPLACE] = "1"  # every child (git, grep pipelines, gitleaks, checks) reads stored objects
+    try:
+        for name, step in steps:
+            try:
+                ok, reason = step(repo)
+            except StepFailed as e:
+                ok, reason = False, f"could not run: {e}"
+            except Exception as e:  # noqa: BLE001 -- the gate reports, it never shows a traceback or exception text
+                ok, reason = False, f"could not run: {type(e).__name__} in {name}"
+            results.append((name, ok, reason))
+    finally:
+        if saved is None:
+            os.environ.pop(NO_REPLACE, None)
+        else:
+            os.environ[NO_REPLACE] = saved
     return results
