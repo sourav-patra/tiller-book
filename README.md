@@ -84,7 +84,7 @@ pip install "tiller-book[test] @ git+https://github.com/sourav-patra/tiller-book
    tlb check run
    ```
 
-   The last command prints the same five PASS lines as the quick start. A commit outside `allowed_paths` fails with the path named:
+   The last command prints the same five PASS lines as the quick start. If the diff from the merge base to `HEAD` holds a path outside `allowed_paths`, the path-scope check fails with the path named:
 
    ```text
    FAIL path-scope: exit 1: FAIL: outside allowed_paths of plans/demo-1.toml at origin/main: outside.txt
@@ -128,16 +128,16 @@ The receipt is the last commit of a unit and changes nothing else. Its `commits.
 
 ## Why an agent cannot widen its own limit
 
-![The tlb checks read the plan and the signers file from origin/main, and read the changed paths and the receipt from the unit branch. A copy of the plan edited on the branch is never read, and editing it fails the path scope check. The boundary holds only while the agent cannot merge to main.](docs/trust-boundary.svg)
+![The tlb checks read the plan and the signers file from origin/main, and read the changed paths and the receipt from the unit branch. A copy of the plan edited on the branch is not the one the checks use, so it cannot widen the limit. The boundary holds only while the agent cannot merge to main.](docs/trust-boundary.svg)
 
-The checks read the limit from main and the work from the branch, so editing the plan on the branch changes nothing except the verdict, which becomes FAIL. This depends on who can merge, which tiller-book does not control.
+The checks read the limit from `origin/main` and the work from the branch, so a plan edited on the branch cannot widen the limit for that check. The edit counts as one more changed path: in a build it fails unless the signed plan allows that path. A change made only of plan files passes these checks, and such a plan counts only once a signed commit brings it onto main. All of this depends on who can merge, which tiller-book does not control.
 
 ## What is enforced now and what is not yet
 
 | Item | Status | What it does | Command | Code |
 |---|---|---|---|---|
 | Signed plans | Enforced now | Fails unless the plan is on the ref, valid against `tiller_book/schemas/plan.schema.json`, and last written by a commit signed with a key in `.github/allowed_signers` on `origin/main` | `tlb plan verify <id>` | `tiller_book/plan/verify.py` |
-| Path scope from main | Enforced now | For build changes, verifies the signed plan on `origin/main` and fails on any path outside its `allowed_paths`; a build that edits its own plan fails too. No changes, and plan-class changes (only `plans/<id>.toml` files), pass without this validation | run by `tlb check run` | `tiller_book/checks/floor/path_scope.py` |
+| Path scope from main | Enforced now | For build changes, verifies the signed plan on `origin/main` and fails on any path outside its `allowed_paths`; a build's edit to its own plan counts as one more changed path and cannot widen the limit. No changes, and plan-class changes (only `plans/<id>.toml` files), pass without this validation | run by `tlb check run` | `tiller_book/checks/floor/path_scope.py` |
 | Receipt check | Enforced now | For build changes, requires a valid signed plan and a receipt-only last commit whose receipt validates and names its parent and the merge base. No changes, and plan-class changes, pass without receipt validation | run by `tlb check run` | `tiller_book/checks/floor/receipt.py` |
 | Fail-closed runner | Enforced now | Runs the registered checks (tests, gitleaks leak scan, path scope, receipt); a failure, timeout, missing tool or command that cannot start counts as a failure, and it exits 0 only if every required check passed | `tlb check run` | `tiller_book/checks/__init__.py`, `tiller_book/checks/registry.py` |
 | Release gate | Enforced now | Deny-list on the HEAD tree and every reachable object, noreply author, committer and tagger addresses, gitleaks, the `VISION.md` lock, and the registered checks, with `HEAD` equal to `origin/main`; a missing tool or deny-list file is a failure | `tlb release gate --denylist PATH` | `tiller_book/release/` |
@@ -152,6 +152,7 @@ The checks read the limit from main and the work from the branch, so editing the
 - CODEOWNERS only requests a review from the owner and enforces nothing.
 - tiller-book does not control who can merge. An agent that can merge to main can change `.github/allowed_signers` and sign its own plans, so keep the merge right with a person.
 - The ruleset on main keeps the owner's bypass actors, so an admin push skips the pull-request gates, though `tlb plan verify` still checks plan signatures.
+- Path scope compares the merge base with `HEAD`, so a path changed and then reverted on the branch does not appear.
 - The receipt check proves the receipt's shape and its binding to the head commit, not that the listed checks ran.
 - A diff fed to a model reviewer can steer its verdict, so review is never the only gate.
 - Token counts and costs in a receipt are reported by the caller, because `tlb receipt write` cannot see a model session.
