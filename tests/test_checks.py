@@ -152,6 +152,8 @@ def test_unencodable_output_prints_on_a_cp1252_console(monkeypatch):
     assert "FAIL bytes: exit 1: bad" in out and "FAIL: required checks not PASS: bytes" in out
 
 
-def test_registry_holds_tests_and_leak_scan_both_required():
-    assert [(c.name, c.required) for c in registry.CHECKS] == [("tests", True), ("leak-scan", True)]
+def test_registry_holds_tests_leak_scan_and_floor_checks_all_required():
+    assert [(c.name, c.required) for c in registry.CHECKS] == [
+        ("tests", True), ("leak-scan", True), ("path-scope", True), ("receipt", True)]
+    assert dict((c.name, c.command) for c in registry.CHECKS)["receipt"] == (PY, "-m", "tiller_book.checks.floor.receipt")
     assert dict((c.name, c.tools) for c in registry.CHECKS)["leak-scan"] == ("gitleaks",)
