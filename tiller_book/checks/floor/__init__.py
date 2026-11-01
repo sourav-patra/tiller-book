@@ -12,7 +12,7 @@ from pathlib import Path
 from tiller_book.plan.verify import PLAN_ID, CouldNotRun, _git
 
 BASE = "origin/main"
-PLAN_FILE = re.compile(r"^plans/[^/]+\.toml$")
+PLAN_FILE = re.compile(r"plans/[A-Za-z0-9][A-Za-z0-9._-]*\.toml")
 BRANCH = re.compile(r"^unit/(.+)$")
 
 
@@ -25,7 +25,7 @@ def git(repo, *args):
 
 def names(repo, *args):
     """Paths from git diff --name-only, read with -z so git never quotes them."""
-    return [p for p in git(repo, "diff", "--name-only", "--no-renames", "-z", *args).split("\0") if p]
+    return [p for p in git(repo, "diff", "--name-only", "--no-renames", "--ignore-submodules=none", "--no-relative", "-z", *args).split("\0") if p]
 
 
 def gate(repo):
@@ -34,7 +34,7 @@ def gate(repo):
     changed = names(repo, base, "HEAD")
     if not changed:
         return base, changed, None, (True, f"no changes against {BASE}")
-    if all(PLAN_FILE.match(p) for p in changed):
+    if all(PLAN_FILE.fullmatch(p) for p in changed):
         return base, changed, None, (True, "not applicable: plan-class pull request, every path under plans/")
     branch = os.environ.get("GITHUB_HEAD_REF") or git(repo, "rev-parse", "--abbrev-ref", "HEAD").strip()
     m = BRANCH.match(branch)

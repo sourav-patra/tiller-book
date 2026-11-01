@@ -212,6 +212,50 @@ def test_receipt_on_a_merge_commit_fails(work, capsys):
     assert code == 1 and "has 2 parents" in out
 
 
+def index_only_commit(repo, path, mode="100644", sha=None):
+    """Commit one index entry that the working tree cannot hold (a gitlink or an odd file name)."""
+    if sha is None:
+        sha = subprocess.run(["git", "-C", str(repo), "hash-object", "-w", "--stdin"], input="x\n",
+                             capture_output=True, text=True, check=True).stdout.strip()
+    # protectNTFS off: Git for Windows refuses such names by default, but a commit made elsewhere can carry them
+    subprocess.run(["git", "-C", str(repo), "-c", "core.protectNTFS=false", "update-index", "--add", "--cacheinfo",
+                    f"{mode},{sha},{path}"], check=True)
+    git(repo, "commit", "-q", "-m", "index only")
+
+
+def test_submodule_outside_plan_fails_even_when_config_ignores_submodules(work, capsys):
+    git(work, "config", "diff.ignoreSubmodules", "all")
+    index_only_commit(work, "vendor/sub", mode="160000", sha=git(work, "rev-parse", "HEAD").strip())
+    code, out = check(path_scope, work, capsys)
+    assert code == 1 and "vendor/sub" in out
+
+
+@pytest.mark.parametrize("name", ["plans/payload.toml\n", "plans/payload.toml\r", "plans/sub/x.toml", "plans/.toml"])
+def test_odd_plans_names_are_not_plan_class(name):
+    assert floor.PLAN_FILE.fullmatch(name) is None
+
+
+def test_newline_suffixed_plans_name_is_a_build_pull_request(make, capsys):
+    work = make(branch="plan/x")
+    index_only_commit(work, "plans/payload.toml\n")
+    assert check(path_scope, work, capsys)[0] == 1
+    assert check(receipt, work, capsys)[0] == 1
+
+
+@pytest.mark.parametrize("constant", ["NaN", "Infinity", "-Infinity"])
+def test_receipt_with_non_standard_json_constant_fails(work, capsys, constant):
+    commit(work, {"src/a.py": "a\n"}, "code")
+    head = git(work, "rev-parse", "HEAD").strip()
+    start = git(work, "merge-base", "origin/main", "HEAD").strip()
+    text = ('{"schema_version": "0.1", "unit": "U9", "runner": {"agent": "test"}, '
+            f'"commits": {{"start": "{start}", "head": "{head}"}}, '
+            f'"model_calls": [{{"model": "m", "input_tokens": 1, "output_tokens": 1, "cost_usd": {constant}}}], '
+            '"checks": [], "refusals": [], "evidence": [], "not_measured": []}\n')
+    commit(work, {"receipts/U9.json": text}, "receipt")
+    code, out = check(receipt, work, capsys)
+    assert code == 1 and "is not valid JSON" in out and constant.lstrip("-") in out
+
+
 @pytest.mark.parametrize("name", ["path_scope", "receipt"])
 def test_module_without_origin_main_fails_with_reason_and_no_traceback(tmp_path, name):
     git(tmp_path, "init", "-q", "-b", "main")

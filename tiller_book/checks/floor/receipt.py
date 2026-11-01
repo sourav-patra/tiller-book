@@ -14,6 +14,10 @@ from tiller_book.checks.floor import BASE, gate, git, names, run
 from tiller_book.plan.verify import SCHEMAS, verify_plan
 
 
+def _reject_constant(name):
+    raise ValueError(f"non-standard JSON constant {name}")
+
+
 def receipt_problem(repo, unit, base):
     """Return the first receipt rule the head breaks, or None."""
     path = f"receipts/{unit}.json"
@@ -27,7 +31,7 @@ def receipt_problem(repo, unit, base):
     if touched != [path]:
         return f"receipt commit {head[:12]} also changes: {', '.join(p for p in touched if p != path)}"
     try:
-        data = json.loads(git(repo, "show", f"{head}:{path}"))
+        data = json.loads(git(repo, "show", f"{head}:{path}"), parse_constant=_reject_constant)
     except ValueError as e:
         return f"{path} is not valid JSON: {e}"
     schema = json.loads((SCHEMAS / "receipt.schema.json").read_text(encoding="utf-8"))
