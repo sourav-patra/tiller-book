@@ -7,13 +7,13 @@
   },
   "commits": {
     "start": "680f04b7542560a5d78bc5cad22ed66debd0a485",
-    "head": "503abf799fd0034e60c0d237943f69d9e5384ac2"
+    "head": "aa7010629a48af381476c2e4cd01a98cb87e8002"
   },
   "model_calls": [],
   "checks": [
     {
       "name": "tests",
-      "command": "'C:\\Work\\AI\\personal\\tiller-book\\.venv\\Scripts\\python.exe' -m pytest -q",
+      "command": "python -m pytest -q",
       "status": "PASS",
       "exit_code": 0,
       "reason": "exit 0"
@@ -27,7 +27,7 @@
     },
     {
       "name": "path-scope",
-      "command": "'C:\\Work\\AI\\personal\\tiller-book\\.venv\\Scripts\\python.exe' -m tiller_book.checks.floor.path_scope",
+      "command": "python -m tiller_book.checks.floor.path_scope",
       "status": "PASS",
       "exit_code": 0,
       "reason": "exit 0"
@@ -59,17 +59,27 @@
       "status": "PASS",
       "exit_code": 0,
       "reason": "both round-one findings closed; no new findings"
+    },
+    {
+      "name": "independent review round three (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit 0a5bc86",
+      "status": "FAIL",
+      "exit_code": 0,
+      "reason": "one finding: the interpreter-path rewrite also changed arguments; closed in aa70106"
+    },
+    {
+      "name": "independent review round four (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit aa70106",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "recorded commands match the commands that ran apart from the interpreter name; no findings"
     }
   ],
   "refusals": [],
   "evidence": [
     {
-      "location": "owner notes store, U5 review, round one",
-      "what": "review round one verdict and findings"
-    },
-    {
-      "location": "owner notes store, U5 review, round two",
-      "what": "review round two verdict"
+      "location": "owner notes store, U5 review, rounds one to four",
+      "what": "review verdicts and findings"
     }
   ],
   "not_measured": [
@@ -78,7 +88,7 @@
       "command": "/cost in that Claude Code session"
     },
     {
-      "claim": "review rounds one and two used 40,305 and 80,755 tokens in total by the codex log; the input and output split and the cost were not recorded",
+      "claim": "review rounds one to four used 40,305, 80,755, 32,727 and 30,011 tokens in total by the codex log; the input and output split and the cost were not recorded",
       "command": "rerun the review with codex exec --json and read the usage fields"
     },
     {
