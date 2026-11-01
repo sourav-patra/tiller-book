@@ -36,7 +36,7 @@ Learning. Every miss becomes a lesson, filed as a GitHub issue. A signed plan th
 
 ## Proof
 
-Every unit leaves a receipt, `receipts/<id>.json`, which must validate against `schemas/receipt.schema.json`. A receipt records who ran the unit, the commits it started from and produced, the model calls it made with their input and output tokens and cost, the checks it ran with their exit codes, what was refused or blocked, and where the evidence is. A claim that was not measured goes in `not_measured` with the command that would measure it. A model call with a null cost needs such an entry.
+Every unit leaves a receipt, `receipts/<id>.json`, which must validate against `tiller_book/schemas/receipt.schema.json`. A receipt records who ran the unit, the commits it started from and produced, the model calls it made with their input and output tokens and cost, the checks it ran with their exit codes, what was refused or blocked, and where the evidence is. A claim that was not measured goes in `not_measured` with the command that would measure it. A model call with a null cost needs such an entry.
 
 The receipt is the last commit of a unit and changes nothing else. Its `commits.head` names that commit's parent, and its `commits.start` names the merge base with `origin/main`.
 
@@ -44,7 +44,7 @@ The receipt is the last commit of a unit and changes nothing else. Its `commits.
 
 | Item | Status | What it does | Command | Code |
 |---|---|---|---|---|
-| Signed plans | Enforced now | Fails unless the plan is on the ref, valid against `schemas/plan.schema.json`, and last written by a commit signed with a key in `.github/allowed_signers` on `origin/main` | `tlb plan verify <id>` | `tiller_book/plan/verify.py` |
+| Signed plans | Enforced now | Fails unless the plan is on the ref, valid against `tiller_book/schemas/plan.schema.json`, and last written by a commit signed with a key in `.github/allowed_signers` on `origin/main` | `tlb plan verify <id>` | `tiller_book/plan/verify.py` |
 | Path scope from main | Enforced now | For build changes, verifies the signed plan on `origin/main` and fails on any path outside its `allowed_paths`; a build that edits its own plan fails too. No changes, and plan-class changes (only `plans/<id>.toml` files), pass without this validation | run by `tlb check run` | `tiller_book/checks/floor/path_scope.py` |
 | Receipt check | Enforced now | For build changes, requires a valid signed plan and a receipt-only last commit whose receipt validates and names its parent and the merge base. No changes, and plan-class changes, pass without receipt validation | run by `tlb check run` | `tiller_book/checks/floor/receipt.py` |
 | Fail-closed runner | Enforced now | Runs the registered checks (tests, gitleaks leak scan, path scope, receipt); a failure, timeout, missing tool or command that cannot start counts as a failure, and it exits 0 only if every required check passed | `tlb check run` | `tiller_book/checks/__init__.py`, `tiller_book/checks/registry.py` |
@@ -65,7 +65,6 @@ The receipt is the last commit of a unit and changes nothing else. Its `commits.
 - With the default checkout, a GitHub `pull_request` event checks out a merge ref, so CI must check out the pull request's head commit for the receipt check.
 - The release gate's deny-list step drops each commit's `gpgsig` header and each tag's signature block before matching, so text placed inside a signature is not checked by that step.
 - There is no watchdog or escalation for a stalled or failed run; the receipt writer records failing checks in the receipt.
-- The schemas load from the repository checkout, so only an editable install finds them.
 - The release gate skips signature blocks in commit headers and tag trailers, because their random text matches short deny-list terms by chance. A commit crafted to hide text inside a fake signature header would pass the deny-list step.
 
 ## Quick start

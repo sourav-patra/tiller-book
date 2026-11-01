@@ -4,7 +4,7 @@ tiller-book is built with its own rules. Every change is a unit, and every unit 
 
 ## How a unit runs
 
-1. Plan. Write `plans/<id>.toml`: an `id`, a `title`, the `allowed_paths` the unit may change and `min_held_out_cases`. The file must validate against `schemas/plan.schema.json`. An entry in `allowed_paths` that ends in `/` is a directory prefix; any other entry is one exact file. Open it as a plan-class pull request, in which every changed path is a `.toml` file under `plans/`.
+1. Plan. Write `plans/<id>.toml`: an `id`, a `title`, the `allowed_paths` the unit may change and `min_held_out_cases`. The file must validate against `tiller_book/schemas/plan.schema.json`. An entry in `allowed_paths` that ends in `/` is a directory prefix; any other entry is one exact file. Open it as a plan-class pull request, in which every changed path is a `.toml` file under `plans/`.
 2. Owner signature. The owner signs the plan commit with an SSH key listed in `.github/allowed_signers` and merges the pull request with "Create a merge commit". A squash or rebase merge rewrites the commit, so the plan loses its signature. `tlb plan verify <id>` passes once the signed plan is on main.
 3. Build. Work on a branch named `unit/<id>`, made from `origin/main`, and change only paths inside the plan's `allowed_paths`. The path-scope check reads the plan from `origin/main`, so editing the plan in the build branch does not widen it.
 4. Independent review. A reviewer that did not build the change, a person or a different agent, reads the change and the source. Record each review round as a `checks[]` item in the receipt.

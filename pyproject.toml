@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tiller-book"
-version = "0.1.0.dev0"
+version = "0.1.0a0"
 description = "Signed plans, independent review and receipts for agentic coding work."
 requires-python = ">=3.11"
 dependencies = ["jsonschema>=4.18"]
@@ -17,3 +17,6 @@ tlb = "tiller_book.cli:main"
 
 [tool.setuptools.packages.find]
 include = ["tiller_book*"]
+
+[tool.setuptools.package-data]
+tiller_book = ["schemas/*.json"]

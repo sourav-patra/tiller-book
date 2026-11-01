@@ -15,8 +15,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator
 
-# shortcut: schemas load from the repository checkout, so only an editable install finds them; package them when U8 writes the install steps.
-SCHEMAS = Path(__file__).resolve().parents[2] / "schemas"
+SCHEMAS = Path(__file__).resolve().parents[1] / "schemas"
 SIGNERS = ".github/allowed_signers"
 PLAN_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 

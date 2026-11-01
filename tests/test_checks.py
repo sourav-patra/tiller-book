@@ -11,7 +11,7 @@ from tiller_book import cli
 from tiller_book.checks import Check, aggregate, registry, run_check
 
 PY = sys.executable
-SCHEMA = json.loads((Path(__file__).resolve().parents[1] / "schemas" / "receipt.schema.json").read_text(encoding="utf-8"))
+SCHEMA = json.loads((Path(__file__).resolve().parents[1] / "tiller_book" / "schemas" / "receipt.schema.json").read_text(encoding="utf-8"))
 CHECKS_SCHEMA = Draft202012Validator(SCHEMA["properties"]["checks"])
 
 
