@@ -1,0 +1,96 @@
+{
+  "schema_version": "0.1",
+  "unit": "U8",
+  "runner": {
+    "agent": "claude-code",
+    "model": "claude-opus-5-5"
+  },
+  "commits": {
+    "start": "4b5e21b5f254803956ccfd6dc58f4eaca4c83d02",
+    "head": "a22faba894963725b1de90d171f664bec09f53a9"
+  },
+  "model_calls": [],
+  "checks": [
+    {
+      "name": "tests",
+      "command": "python -m pytest -q",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "leak-scan",
+      "command": "gitleaks git .",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "path-scope",
+      "command": "python -m tiller_book.checks.floor.path_scope",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "plan verify U8 on origin/main",
+      "command": "tlb plan verify U8",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "deny-list",
+      "command": ".git/hooks/pre-push",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "independent review round one (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit 940835d",
+      "status": "FAIL",
+      "exit_code": 0,
+      "reason": "six wording findings: universal enforcement claims, floor-check exceptions, receipt invalidation, writer options, release prerequisites, failure reasons; closed in c03f2ad"
+    },
+    {
+      "name": "independent review round two (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit c03f2ad",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "all round-one findings closed; no findings"
+    },
+    {
+      "name": "independent review round three (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit a22faba",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "README release gate text matches the merged U9 code; no findings"
+    }
+  ],
+  "refusals": [],
+  "evidence": [
+    {
+      "location": "owner notes store, U8 review, rounds one to three",
+      "what": "review verdicts and findings"
+    }
+  ],
+  "not_measured": [
+    {
+      "claim": "model tokens and cost of the Claude Code session that built U8",
+      "command": "/cost in that Claude Code session"
+    },
+    {
+      "claim": "review rounds one to three used 92,106, 67,654 and 86,280 tokens in total by the codex log; the input and output split and the cost were not recorded",
+      "command": "rerun the review with codex exec --json and read the usage fields"
+    },
+    {
+      "claim": "an independent run of the full test suite; the reviewer read source and tests without running them",
+      "command": "the CI test job planned for 0.1 on the head commit"
+    },
+    {
+      "claim": "receipt check, skipped by the writer",
+      "command": "tlb check run"
+    }
+  ]
+}
