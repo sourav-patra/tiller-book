@@ -293,13 +293,26 @@ def test_non_noreply_identity_fails_without_the_address(repo, denylist, capsys):
     git(repo, "-c", f"user.email={ADDR}", "commit", "-q", "--allow-empty", "-m", "other identity")
     publish(repo)
     assert fails(repo, denylist, capsys, "identities").startswith(
-        "FAIL identities: 1 of 2 author and committer addresses")
+        "FAIL identities: 1 of 2 author, committer and tagger addresses")
 
 
 def test_web_flow_committer_passes_identities(repo, denylist, capsys):
     git(repo, "-c", "user.email=noreply@github.com", "commit", "-q", "--allow-empty", "-m", "web merge")
     publish(repo)
     assert step(run(repo, denylist, capsys)[1], "identities").startswith("PASS identities: all 2")
+
+
+def test_personal_tagger_address_fails_without_the_address(repo, denylist, capsys):
+    git(repo, "-c", f"user.email={ADDR}", "tag", "-a", "v1", "-m", "release")
+    assert fails(repo, denylist, capsys, "identities").startswith(
+        "FAIL identities: 1 of 2 author, committer and tagger addresses")
+
+
+def test_noreply_tagger_and_lightweight_tag_pass_identities(repo, denylist, capsys):
+    git(repo, "-c", "user.email=noreply@github.com", "tag", "-a", "v1", "-m", "release")
+    git(repo, "tag", "light")
+    assert step(run(repo, denylist, capsys)[1], "identities") == (
+        "PASS identities: all 2 author, committer and tagger addresses are GitHub noreply addresses")
 
 
 # leak-scan

@@ -107,6 +107,7 @@ def _reachable_text(repo):
             raise StepFailed("git cat-file could not read a reachable object")
         kind, size = fields[1], int(fields[2])
         body, pos = out[nl + 1:nl + 1 + size], nl + 2 + size
+        # Signatures are skipped to avoid chance hits in base64; limit: a crafted fake signature can hide text.
         if kind == b"commit":
             parts.append(_without_gpgsig(body))
         elif kind == b"tag":
@@ -142,11 +143,16 @@ def identities(repo):
     code, out, _ = _git(repo, "log", "--all", "--format=%ae%n%ce")
     if code != 0:
         raise StepFailed(f"git log exited {code}")
-    seen = set(out.splitlines())
+    code, tags, _ = _git(repo, "for-each-ref", "--format=%(taggeremail)", "refs/tags")
+    if code != 0:
+        raise StepFailed(f"git for-each-ref exited {code}")
+    taggers = {t.strip().removeprefix("<").removesuffix(">") for t in tags.splitlines() if t.strip()}
+    seen = set(out.splitlines()) | taggers  # a lightweight tag has no tagger and gives an empty line
     bad = [a for a in seen if a != "noreply@github.com" and not a.endswith("@users.noreply.github.com")]
+    what = "author, committer and tagger addresses"
     if bad:
-        return False, f"{len(bad)} of {len(seen)} author and committer addresses are not GitHub noreply addresses"
-    return True, f"all {len(seen)} author and committer addresses are GitHub noreply addresses"
+        return False, f"{len(bad)} of {len(seen)} {what} are not GitHub noreply addresses"
+    return True, f"all {len(seen)} {what} are GitHub noreply addresses"
 
 
 def leak_scan(repo):
