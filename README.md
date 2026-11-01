@@ -63,6 +63,7 @@ The receipt is the last commit of a unit and changes nothing else. Its `commits.
 - A diff fed to a model reviewer can steer its verdict, so review is never the only gate.
 - Token counts and costs in a receipt are reported by the caller, because `tlb receipt write` cannot see a model session.
 - With the default checkout, a GitHub `pull_request` event checks out a merge ref, so CI must check out the pull request's head commit for the receipt check.
+- The release gate's deny-list step drops each commit's `gpgsig` header and each tag's signature block before matching, so text placed inside a signature is not checked by that step.
 - There is no watchdog or escalation for a stalled or failed run; the receipt writer records failing checks in the receipt.
 - The schemas load from the repository checkout, so only an editable install finds them.
 - The release gate skips signature blocks in commit headers and tag trailers, because their random text matches short deny-list terms by chance. A commit crafted to hide text inside a fake signature header would pass the deny-list step.
@@ -102,7 +103,7 @@ tlb check run
   - `--agent` and `--model`, the runner;
   - `--skip-check NAME`, repeatable, `tests` or `receipt`; `receipt` is always skipped, and each skipped check is listed in `not_measured`;
   - `--repo PATH`, the repository, default the current directory.
-- `tlb release gate --denylist PATH [--repo PATH]`: requires `HEAD` to equal `origin/main`; it does not switch to it. It then checks the deny-list against the HEAD tree and every object reachable from every ref, author, committer and tagger addresses, gitleaks on the history and on tag objects, the `VISION.md` lock, and the registered checks. It prints one PASS or FAIL line per step and a final verdict, and exits 0 only if all steps pass. The deny-list file stays outside the repository. Output is counts and fixed reasons only, never matched text, addresses or tool output.
+- `tlb release gate --denylist PATH [--repo PATH]`: requires `HEAD` to equal `origin/main` in a full clone without grafts; it does not switch to it. It then checks the deny-list against the HEAD tree and every object reachable from every ref, author, committer and tagger addresses, gitleaks on the history and on every reachable blob, commit and tag, the `VISION.md` lock, and the registered checks. It prints one PASS or FAIL line per step and a final verdict, and exits 0 only if all steps pass. The deny-list file stays outside the repository. Output is counts and fixed reasons only, never matched text, addresses or tool output.
 
 ## Why not X
 
