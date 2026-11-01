@@ -1,0 +1,93 @@
+{
+  "schema_version": "0.1",
+  "unit": "U3",
+  "runner": {
+    "agent": "claude-code",
+    "model": "claude-opus-5-5"
+  },
+  "commits": {
+    "start": "87e207dab5a2890b7caf26b383364ac49de5ff65",
+    "head": "680f04b7542560a5d78bc5cad22ed66debd0a485"
+  },
+  "model_calls": [],
+  "checks": [
+    {
+      "name": "tests",
+      "command": "python -m pytest -q",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "91 passed"
+    },
+    {
+      "name": "leak scan",
+      "command": "gitleaks git .",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "path scope against plans/U3.toml on origin/main",
+      "command": "python -m tiller_book.checks.floor.path_scope",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "plan verify U3 on origin/main",
+      "command": "tlb plan verify U3",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "deny-list",
+      "command": ".git/hooks/pre-push",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "independent review round one (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit 4ad120b",
+      "status": "FAIL",
+      "exit_code": 0,
+      "reason": "three findings: diff.ignoreSubmodules hid a submodule, a plans name with a trailing newline passed as plan-class, a receipt with NaN passed; all closed in 680f04b"
+    },
+    {
+      "name": "independent review round two (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit 680f04b",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "all three round-one findings closed; no new findings"
+    }
+  ],
+  "refusals": [],
+  "evidence": [
+    {
+      "location": "owner notes store, U3 review, round one",
+      "what": "review round one verdict and findings"
+    },
+    {
+      "location": "owner notes store, U3 review, round two",
+      "what": "review round two verdict"
+    }
+  ],
+  "not_measured": [
+    {
+      "claim": "the receipt check on this unit; it can only pass once this receipt commit exists",
+      "command": "python -m tiller_book.checks.floor.receipt on the head of unit/U3"
+    },
+    {
+      "claim": "model tokens and cost of the Claude Code session and the Claude worker that built U3",
+      "command": "/cost in that Claude Code session"
+    },
+    {
+      "claim": "review rounds one and two used 42,447 and 63,063 tokens in total by the codex log; the input and output split and the cost were not recorded",
+      "command": "rerun the review with codex exec --json and read the usage fields"
+    },
+    {
+      "claim": "an independent run of the full test suite; the reviewer's sandbox could not create temporary folders",
+      "command": "the CI test job planned for 0.1 on the head commit"
+    }
+  ]
+}
