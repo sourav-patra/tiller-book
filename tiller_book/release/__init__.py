@@ -155,9 +155,14 @@ def _reachable_text(repo):
     """
     objects = _reachable(repo)
     parts = _git_bytes(repo, "for-each-ref", "--format=%(refname)").splitlines()
-    commit_roots = [body.split(b"\n", 1)[0][5:] for _, kind, body in objects if kind == b"commit"]
+    # path roots: each commit's tree, each tree a tag points at, and each tree a ref names directly
+    roots = [body.split(b"\n", 1)[0][5:] for _, kind, body in objects if kind == b"commit"]
+    roots += [body.split(b"\n", 1)[0][7:] for _, kind, body in objects
+              if kind == b"tag" and b"\ntype tree\n" in body.split(b"\n\n", 1)[0] + b"\n"]
+    refs = _git_bytes(repo, "for-each-ref", "--format=%(objectname) %(objecttype)").splitlines()
+    roots += [line.split()[0] for line in refs if line.split()[1:] == [b"tree"]]
     parts.extend(_full_paths({oid: _tree_entries(oid, body) for oid, kind, body in objects if kind == b"tree"},
-                             commit_roots))
+                             roots))
     for oid, kind, body in objects:
         # Signatures are skipped to avoid chance hits in base64; limit: a crafted fake signature can hide text.
         if kind == b"commit":
@@ -216,11 +221,16 @@ def leak_scan(repo):
         for oid, kind in zip(fields[0::2], fields[1::2]):
             if kind not in (b"commit", b"tag"):
                 loose[oid] = _raw(repo, oid)
-    code_git, _ = _bytes(["gitleaks", "git", ".", "--log-opts=--all --full-history -m"], cwd=repo, timeout=300)
-    with tempfile.TemporaryDirectory() as d:
+    with tempfile.TemporaryDirectory() as cfg, tempfile.TemporaryDirectory() as d:
+        # the gate's own config and an empty ignore path, so files in the repository cannot weaken the scan
+        conf = Path(cfg) / "gitleaks.toml"
+        conf.write_text("[extend]\nuseDefault = true\n", encoding="utf-8")
+        trusted = ["--config", str(conf), "--gitleaks-ignore-path", cfg, "--ignore-gitleaks-allow"]
+        code_git, _ = _bytes(["gitleaks", "git", ".", "--log-opts=--all --full-history -m --root", *trusted],
+                             cwd=repo, timeout=300)
         for oid, body in loose.items():
             (Path(d) / oid.decode("ascii")).write_bytes(body)
-        code_dir, _ = _bytes(["gitleaks", "dir", d], timeout=300)
+        code_dir, _ = _bytes(["gitleaks", "dir", d, *trusted], timeout=300)
     reason = f"gitleaks git exit {code_git}, gitleaks dir exit {code_dir} ({len(loose)} tag or non-commit objects)"
     return code_git == 0 and code_dir == 0, reason
 

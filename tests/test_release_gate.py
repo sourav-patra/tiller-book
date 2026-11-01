@@ -289,6 +289,25 @@ def test_root_anchored_path_of_a_root_tree_reused_under_a_directory_is_counted(r
         "FAIL deny-list: 0 matching lines in 0 files at HEAD, 1 matching lines across ")
 
 
+def test_root_anchored_path_of_a_tagged_tree_reused_under_a_directory_is_counted(repo, tmp_path, capsys):
+    deny = tmp_path / "anchored.txt"
+    deny.write_text("^plumbar/vexmoor\n", newline="\n")
+    # bytes on stdin: text mode on Windows would turn each newline into CRLF and corrupt the names
+    def plumb(args, data):
+        return subprocess.run(["git", "-C", str(repo), *args], input=data.encode(), capture_output=True,
+                              check=True).stdout.decode().strip()
+    blob = plumb(["hash-object", "-w", "--stdin"], "clean\n")
+    inner = plumb(["mktree"], f"100644 blob {blob}\tvexmoor.txt\n")
+    tagged = plumb(["mktree"], f"040000 tree {inner}\tplumbar\n")
+    git(repo, "tag", "-a", "snapshot", tagged, "-m", "a tree")
+    git(repo, "read-tree", "--prefix=archive/", tagged)
+    git(repo, "commit", "-q", "-m", "archive the tagged tree")
+    git(repo, "checkout", "-q", "--", ".")
+    publish(repo)
+    assert fails(repo, deny, capsys, "deny-list").startswith(
+        "FAIL deny-list: 0 matching lines in 0 files at HEAD, 1 matching lines across ")
+
+
 def test_grafts_file_fails_the_head_step(repo, denylist, capsys):
     commit(repo, {"notes.txt": f"{TERM}\n"}, "add")
     commit(repo, {"notes.txt": "gone\n"}, "remove")
@@ -443,6 +462,31 @@ def test_secret_introduced_only_by_a_merge_then_removed_fails_leak_scan(repo, de
 
 
 @needs_gitleaks
+def test_repository_gitleaks_config_and_ignore_files_cannot_hide_a_secret(repo, denylist, capsys):
+    secret = token()
+    commit(repo, {".gitleaks.toml": '[allowlist]\nregexes = [".*"]\n', ".gitleaksignore": "*\n",
+                  "config.txt": f"token = {secret}\n"}, "allow all")
+    publish(repo)
+    assert fails(repo, denylist, capsys, "leak-scan").startswith("FAIL leak-scan: gitleaks git exit 1")
+
+
+@needs_gitleaks
+def test_gitleaks_allow_comment_cannot_hide_a_secret(repo, denylist, capsys):
+    commit(repo, {"config.txt": f"token = {token()}  # gitleaks:allow\n"}, "allow comment")
+    publish(repo)
+    assert fails(repo, denylist, capsys, "leak-scan").startswith("FAIL leak-scan: gitleaks git exit 1")
+
+
+@needs_gitleaks
+def test_secret_in_a_root_commit_on_another_branch_fails_with_show_root_off(repo, denylist, capsys):
+    git(repo, "config", "log.showRoot", "false")
+    git(repo, "switch", "-q", "--orphan", "other")
+    commit(repo, {"config.txt": f"token = {token()}\n"}, "root")
+    git(repo, "switch", "-q", "-f", "main")
+    assert fails(repo, denylist, capsys, "leak-scan").startswith("FAIL leak-scan: gitleaks git exit 1")
+
+
+@needs_gitleaks
 def test_leaked_secret_in_an_annotated_tag_message_fails_leak_scan(repo, denylist, capsys):
     secret = token()
     git(repo, "tag", "-a", "v1", "-m", f"token = {secret}")
@@ -461,10 +505,12 @@ def test_leaked_secret_in_the_innermost_of_three_tags_fails_leak_scan(repo, deny
 
 
 @needs_gitleaks
-def test_gitleaks_config_error_prints_none_of_its_output(repo, denylist, capsys):
+def test_broken_repository_gitleaks_config_is_ignored_and_prints_nothing(repo, denylist, capsys):
     commit(repo, {".gitleaks.toml": f"[[rules]]\nid = \"{TERM} {ADDR}\"\nregex = '''(['''\n"}, "config")
     publish(repo)
-    fails(repo, denylist, capsys, "leak-scan")
+    code, out = run(repo, denylist, capsys)
+    assert step(out, "leak-scan").startswith("PASS leak-scan: gitleaks git exit 0"), out
+    clean(out)
 
 
 def test_missing_gitleaks_fails(repo, denylist, capsys, monkeypatch):
