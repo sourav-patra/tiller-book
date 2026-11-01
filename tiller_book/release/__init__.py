@@ -61,19 +61,19 @@ def denylist(repo, path):
     with tempfile.TemporaryDirectory() as d:
         pf = Path(d) / "patterns"
         pf.write_bytes(b"\n".join(patterns) + b"\n")
-        code, out = _bytes(["git", "-C", str(repo), "grep", "-I", "-i", "-c", "-f", pf.as_posix()])
+        code, out = _bytes(["git", "-C", str(repo), "grep", "-I", "-i", "-c", "-f", pf.as_posix(), "HEAD"])
         if code not in (0, 1):
             raise CouldNotRun(f"git grep exited {code}")
         per_file = [int(line.rsplit(b":", 1)[1]) for line in out.splitlines()]
-        code, log = _bytes(["git", "-C", str(repo), "log", "-p", "--all"])
+        code, log = _bytes(["git", "-C", str(repo), "log", "-p", "-m", "--all"])
         if code != 0:
-            raise CouldNotRun(f"git log -p --all exited {code}")
+            raise CouldNotRun(f"git log -p -m --all exited {code}")
         code, out = _bytes(["grep", "-i", "-c", "-f", pf.as_posix()], input=log)
         if code not in (0, 1):
             raise CouldNotRun(f"grep exited {code}")
     history = int(out.strip())
-    reason = (f"{sum(per_file)} matching lines in {len(per_file)} tracked files, "
-              f"{history} matching lines in git log -p --all")
+    reason = (f"{sum(per_file)} matching lines in {len(per_file)} files at HEAD, "
+              f"{history} matching lines in git log -p -m --all")
     return not per_file and history == 0, reason
 
 

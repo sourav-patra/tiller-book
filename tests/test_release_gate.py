@@ -92,8 +92,8 @@ def test_deny_list_hit_is_reported_by_count_without_the_text(repo, denylist, cap
     publish(repo)
     code, out = run(repo, denylist, capsys)
     assert code == 1
-    assert step(out, "deny-list") == ("FAIL deny-list: 2 matching lines in 1 tracked files, "
-                                      "3 matching lines in git log -p --all")
+    assert step(out, "deny-list") == ("FAIL deny-list: 2 matching lines in 1 files at HEAD, "
+                                      "3 matching lines in git log -p -m --all")
     assert "zorblatt" not in out.lower() and "quillfen" not in out.lower()
 
 
@@ -103,7 +103,30 @@ def test_deny_list_hit_in_history_only_fails(repo, denylist, capsys):
     publish(repo)
     code, out = run(repo, denylist, capsys)
     assert code == 1
-    assert step(out, "deny-list").startswith("FAIL deny-list: 0 matching lines in 0 tracked files, 2 matching")
+    assert step(out, "deny-list").startswith("FAIL deny-list: 0 matching lines in 0 files at HEAD, 2 matching")
+
+
+def test_deny_list_hit_introduced_only_by_a_merge_commit_fails(repo, denylist, capsys):
+    git(repo, "switch", "-q", "-c", "side")
+    commit(repo, {"side.txt": "side\n"}, "side")
+    git(repo, "switch", "-q", "main")
+    commit(repo, {"main.txt": "main\n"}, "main")
+    git(repo, "merge", "-q", "--no-commit", "--no-ff", "side")
+    (repo / "evil.txt").write_text("zorblatt\n", newline="\n")
+    git(repo, "add", "evil.txt")
+    git(repo, "commit", "-q", "-m", "merge side")
+    commit(repo, {"evil.txt": "clean\n"}, "tidy")
+    publish(repo)
+    code, out = run(repo, denylist, capsys)
+    assert code == 1
+    assert step(out, "deny-list").startswith("FAIL deny-list: 0 matching lines in 0 files at HEAD, ")
+    assert "0 matching lines in git log" not in step(out, "deny-list")
+
+
+def test_uncommitted_working_tree_text_is_not_what_the_gate_scans(repo, denylist, capsys):
+    (repo / "VISION.md").write_text("zorblatt\n", newline="\n")
+    code, out = run(repo, denylist, capsys)
+    assert step(out, "deny-list").startswith("PASS deny-list: 0 matching lines in 0 files at HEAD, 0 ")
 
 
 def test_crlf_deny_list_still_matches(repo, tmp_path, capsys):
