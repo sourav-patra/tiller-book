@@ -438,7 +438,7 @@ def test_leaked_secret_in_a_commit_fails_leak_scan(repo, denylist, capsys):
     commit(repo, {"config.txt": f"token = {secret}\n"}, "oops")
     publish(repo)
     reason = fails(repo, denylist, capsys, "leak-scan")
-    assert reason.startswith("FAIL leak-scan: gitleaks git exit 1, gitleaks dir exit 0")
+    assert reason.startswith("FAIL leak-scan: gitleaks git exit 1")
     assert secret not in reason
 
 
@@ -468,6 +468,20 @@ def test_repository_gitleaks_config_and_ignore_files_cannot_hide_a_secret(repo, 
                   "config.txt": f"token = {secret}\n"}, "allow all")
     publish(repo)
     assert fails(repo, denylist, capsys, "leak-scan").startswith("FAIL leak-scan: gitleaks git exit 1")
+
+
+@needs_gitleaks
+def test_minus_diff_attribute_cannot_hide_a_secret(repo, denylist, capsys):
+    commit(repo, {".gitattributes": "payload.txt -diff\n", "payload.txt": f"token = {token()}\n"}, "binary-looking")
+    publish(repo)
+    assert "gitleaks dir exit 1" in fails(repo, denylist, capsys, "leak-scan")
+
+
+@needs_gitleaks
+def test_secret_only_in_a_commit_message_fails_leak_scan(repo, denylist, capsys):
+    git(repo, "commit", "-q", "--allow-empty", "-m", f"token = {token()}")
+    publish(repo)
+    assert "gitleaks dir exit 1" in fails(repo, denylist, capsys, "leak-scan")
 
 
 @needs_gitleaks

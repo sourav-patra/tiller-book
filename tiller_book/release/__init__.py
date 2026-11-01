@@ -211,16 +211,13 @@ def identities(repo):
 
 
 def leak_scan(repo):
-    """gitleaks git . reads commits only, so every reachable tag object and every non-commit object a ref
-    points at (directly or through one tag) is scanned as a file too."""
+    """gitleaks git . reads diffs, which attributes such as -diff can hide and which carry no tag text, so
+    every reachable blob, commit and tag is also scanned as a file, with signature blocks removed as in the
+    deny-list step."""
     if shutil.which("gitleaks") is None:
         raise StepFailed("gitleaks not on PATH")
-    loose = {oid: body for oid, kind, body in _reachable(repo) if kind == b"tag"}
-    refs = _git_bytes(repo, "for-each-ref", "--format=%(objectname) %(objecttype) %(*objectname) %(*objecttype)")
-    for fields in (line.split() for line in refs.splitlines()):
-        for oid, kind in zip(fields[0::2], fields[1::2]):
-            if kind not in (b"commit", b"tag"):
-                loose[oid] = _raw(repo, oid)
+    strip = {b"blob": lambda b: b, b"commit": _without_gpgsig, b"tag": _without_tag_signature}
+    loose = {oid: strip[kind](body) for oid, kind, body in _reachable(repo) if kind in strip}
     with tempfile.TemporaryDirectory() as cfg, tempfile.TemporaryDirectory() as d:
         # the gate's own config and an empty ignore path, so files in the repository cannot weaken the scan
         conf = Path(cfg) / "gitleaks.toml"
@@ -231,13 +228,8 @@ def leak_scan(repo):
         for oid, body in loose.items():
             (Path(d) / oid.decode("ascii")).write_bytes(body)
         code_dir, _ = _bytes(["gitleaks", "dir", d, *trusted], timeout=300)
-    reason = f"gitleaks git exit {code_git}, gitleaks dir exit {code_dir} ({len(loose)} tag or non-commit objects)"
+    reason = f"gitleaks git exit {code_git}, gitleaks dir exit {code_dir} ({len(loose)} reachable blobs, commits and tags)"
     return code_git == 0 and code_dir == 0, reason
-
-
-def _raw(repo, oid):
-    kind = _git_bytes(repo, "cat-file", "-t", oid.decode("ascii")).strip().decode("ascii")
-    return _git_bytes(repo, "cat-file", kind, oid.decode("ascii"))
 
 
 def vision_lock(repo):
