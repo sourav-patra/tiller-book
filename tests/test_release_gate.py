@@ -1,6 +1,7 @@
 """tlb release gate against throwaway repositories, a throwaway SSH key and an invented deny-list."""
 
 import hashlib
+import os
 import random
 import shutil
 import string
@@ -243,7 +244,9 @@ def test_term_in_a_path_name_is_counted(repo, denylist, capsys):
         "FAIL deny-list: 0 matching lines in 0 files at HEAD, ")
 
 
-def test_replaced_blob_is_scanned_as_stored(repo, denylist, capsys, tmp_path):
+def test_replaced_blob_is_scanned_as_stored(repo, denylist, capsys, tmp_path, monkeypatch):
+    # the gate runs this suite with replace objects off; the check below needs git's default
+    monkeypatch.delenv("GIT_NO_REPLACE_OBJECTS", raising=False)
     commit(repo, {"notes.txt": f"{TERM}\n"}, "add")
     publish(repo)
     stored = git(repo, "rev-parse", "HEAD:notes.txt").strip()
@@ -252,6 +255,7 @@ def test_replaced_blob_is_scanned_as_stored(repo, denylist, capsys, tmp_path):
     git(repo, "replace", stored, git(repo, "hash-object", "-w", str(cover)).strip())
     assert git(repo, "show", "HEAD:notes.txt") == "clean\n"  # git itself now shows the replacement
     fails(repo, denylist, capsys, "deny-list")
+    assert "GIT_NO_REPLACE_OBJECTS" not in os.environ  # the gate restores the caller's environment
 
 
 def test_name_of_a_renamed_file_with_unchanged_content_is_counted(repo, denylist, capsys):
