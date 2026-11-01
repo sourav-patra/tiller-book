@@ -1,0 +1,124 @@
+{
+  "schema_version": "0.1",
+  "unit": "U9",
+  "runner": {
+    "agent": "claude-code",
+    "model": "claude-opus-5-5"
+  },
+  "commits": {
+    "start": "c005d7e6d83a41ad0d9e161c176dafa6f77bdfff",
+    "head": "25f0eb91e5ba9c0a64cc1f5db6ceaf123da04baa"
+  },
+  "model_calls": [],
+  "checks": [
+    {
+      "name": "tests",
+      "command": "python -m pytest -q",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "leak-scan",
+      "command": "gitleaks git .",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "path-scope",
+      "command": "python -m tiller_book.checks.floor.path_scope",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "plan verify U9 on origin/main",
+      "command": "tlb plan verify U9",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "deny-list",
+      "command": ".git/hooks/pre-push",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "independent review round one (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit 51e244b",
+      "status": "FAIL",
+      "exit_code": 0,
+      "reason": "five findings: binary contents, annotated tags and non-commit refs escaped the deny-list; output could print raw tool text; root commits depended on log config; no missing ssh-keygen test; closed in 0d3cc19 and 3f8d47a"
+    },
+    {
+      "name": "independent review round two (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit 3f8d47a",
+      "status": "FAIL",
+      "exit_code": 0,
+      "reason": "four findings: replacement refs, nested tags for gitleaks and taggers, historical names after a rename; closed in 259c333"
+    },
+    {
+      "name": "independent review round three (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit 259c333",
+      "status": "FAIL",
+      "exit_code": 0,
+      "reason": "two findings: grafts hid history, full historical paths unscanned; closed in f82cb7d"
+    },
+    {
+      "name": "independent review round four (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit f82cb7d",
+      "status": "FAIL",
+      "exit_code": 0,
+      "reason": "two findings: merge-only secrets, reused root trees; closed in 30a0e78"
+    },
+    {
+      "name": "independent review round five (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit 30a0e78",
+      "status": "FAIL",
+      "exit_code": 0,
+      "reason": "three findings: repository gitleaks config, root-commit secrets with showRoot off, tagged trees reused under a directory; closed in fe1f88f"
+    },
+    {
+      "name": "independent review round six (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit fe1f88f",
+      "status": "FAIL",
+      "exit_code": 0,
+      "reason": "two findings: a -diff attribute hid a blob secret, a secret only in a commit message; closed in 6a49500"
+    },
+    {
+      "name": "independent review round seven (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit 6a49500",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "both round-six findings closed; no findings within the accepted limits"
+    }
+  ],
+  "refusals": [],
+  "evidence": [
+    {
+      "location": "owner notes store, U9 review, rounds one to seven",
+      "what": "review verdicts and findings"
+    }
+  ],
+  "not_measured": [
+    {
+      "claim": "model tokens and cost of the Claude Code session and the Claude worker that built U9",
+      "command": "/cost in that Claude Code session"
+    },
+    {
+      "claim": "review rounds one to seven used 48,272, 88,624, 75,639, 65,405, 61,753, 49,331 and 54,488 tokens in total by the codex log; the input and output split and the cost were not recorded",
+      "command": "rerun the review with codex exec --json and read the usage fields"
+    },
+    {
+      "claim": "an independent run of the full test suite; the reviewer's sandbox could not run MSYS ssh-keygen or create temporary folders",
+      "command": "the CI test job planned for 0.1 on the head commit"
+    },
+    {
+      "claim": "receipt check, skipped by the writer",
+      "command": "tlb check run"
+    }
+  ]
+}
