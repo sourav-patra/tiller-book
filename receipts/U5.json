@@ -1,0 +1,93 @@
+{
+  "schema_version": "0.1",
+  "unit": "U5",
+  "runner": {
+    "agent": "claude-code",
+    "model": "claude-opus-5-5"
+  },
+  "commits": {
+    "start": "680f04b7542560a5d78bc5cad22ed66debd0a485",
+    "head": "503abf799fd0034e60c0d237943f69d9e5384ac2"
+  },
+  "model_calls": [],
+  "checks": [
+    {
+      "name": "tests",
+      "command": "'C:\\Work\\AI\\personal\\tiller-book\\.venv\\Scripts\\python.exe' -m pytest -q",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "leak-scan",
+      "command": "gitleaks git .",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "path-scope",
+      "command": "'C:\\Work\\AI\\personal\\tiller-book\\.venv\\Scripts\\python.exe' -m tiller_book.checks.floor.path_scope",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "plan verify U5 on origin/main",
+      "command": "tlb plan verify U5",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "deny-list",
+      "command": ".git/hooks/pre-push",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "independent review round one (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit 8a2521d",
+      "status": "FAIL",
+      "exit_code": 0,
+      "reason": "two findings: a failed write could leave a partial receipt, and --skip-check tests alone ran the receipt check; both closed in 503abf7"
+    },
+    {
+      "name": "independent review round two (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit 503abf7",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "both round-one findings closed; no new findings"
+    }
+  ],
+  "refusals": [],
+  "evidence": [
+    {
+      "location": "owner notes store, U5 review, round one",
+      "what": "review round one verdict and findings"
+    },
+    {
+      "location": "owner notes store, U5 review, round two",
+      "what": "review round two verdict"
+    }
+  ],
+  "not_measured": [
+    {
+      "claim": "model tokens and cost of the Claude Code session and the Claude worker that built U5",
+      "command": "/cost in that Claude Code session"
+    },
+    {
+      "claim": "review rounds one and two used 40,305 and 80,755 tokens in total by the codex log; the input and output split and the cost were not recorded",
+      "command": "rerun the review with codex exec --json and read the usage fields"
+    },
+    {
+      "claim": "an independent run of the full test suite; the reviewer's sandbox could not create temporary folders",
+      "command": "the CI test job planned for 0.1 on the head commit"
+    },
+    {
+      "claim": "receipt check, skipped by the writer",
+      "command": "tlb check run"
+    }
+  ]
+}
