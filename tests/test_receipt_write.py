@@ -171,7 +171,36 @@ def test_skip_tests_is_not_run_and_is_listed_as_not_measured(work, capsys):
     data = written(work)
     assert [c["name"] for c in data["checks"]] == ["path-scope"]
     assert data["not_measured"] == [{"claim": f"{n} check, skipped by the writer", "command": "tlb check run"}
-                                    for n in ("tests", "receipt")]
+                                    for n in ("receipt", "tests")]
+
+
+def test_skip_tests_alone_still_skips_the_receipt_check(work, capsys):
+    code_commit(work)
+    assert write(work, capsys, "--skip-check", "tests")[0] == 0
+    data = written(work)
+    assert [c["name"] for c in data["checks"]] == ["path-scope"]
+    assert {m["claim"] for m in data["not_measured"]} == {"tests check, skipped by the writer",
+                                                          "receipt check, skipped by the writer"}
+
+
+@pytest.mark.parametrize("existing", [None, "old receipt\n"])
+def test_failed_write_leaves_no_partial_receipt(work, capsys, monkeypatch, existing):
+    code_commit(work)
+    target = work / "receipts" / "U9.json"
+    if existing is not None:
+        target.parent.mkdir(exist_ok=True)
+        target.write_text(existing, encoding="utf-8", newline="\n")
+
+    def fail(*a, **k):
+        raise OSError("disk full")
+    monkeypatch.setattr("tiller_book.receipt.write.os.replace", fail)
+    code, out = write(work, capsys)
+    assert code == 1
+    if existing is None:
+        assert not target.exists()
+    else:
+        assert target.read_text(encoding="utf-8") == existing
+    assert [p.name for p in target.parent.iterdir() if p.name != "U9.json"] == []
 
 
 def test_skip_check_names_outside_receipt_and_tests_are_rejected(work, capsys):

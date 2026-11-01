@@ -6,7 +6,9 @@ binding the receipt check reads. Token counts and cost come from the caller: the
 
 import json
 import math
+import os
 import re
+import tempfile
 from pathlib import Path
 
 from jsonschema import Draft202012Validator
@@ -117,5 +119,13 @@ def write(repo, unit, **options):
     path = Path(repo) / "receipts" / f"{unit}.json"
     text = json.dumps(data, indent=2, ensure_ascii=False, allow_nan=False) + "\n"
     path.parent.mkdir(exist_ok=True)
-    path.write_text(text, encoding="utf-8", newline="\n")
+    # write beside the target, then rename, so a failed write never leaves a partial receipt
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=f".{unit}.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
     return 0, f"PASS: wrote receipts/{unit}.json; commit it alone as the last commit"

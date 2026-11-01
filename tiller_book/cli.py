@@ -76,7 +76,7 @@ def receipt_write(args):
         code, message = receipt.write(
             Path(args.repo), args.unit, agent=args.agent, model=args.model, model_calls=args.model_call,
             check_file=args.check_file, evidence=args.evidence, not_measured=args.not_measured,
-            skip=args.skip_check or ["receipt"])
+            skip=sorted(set(args.skip_check or []) | {"receipt"}))
     except Exception as e:  # noqa: BLE001 - fail closed on anything, never a traceback
         code, message = 1, f"FAIL: could not run: {e}"
     print(" ".join(str(message).splitlines()))
