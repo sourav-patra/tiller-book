@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 736" width="900" height="736" role="img" aria-labelledby="title desc">
+  <title id="title">How one change moves through tiller-book</title>
+  <desc id="desc">Four lanes: owner, agent, independent reviewer and the tlb command. The agent writes a plan, the owner signs and merges it, and tlb plan verify checks it. The agent builds on a unit branch, a reviewer who is not the builder reviews it, and the agent commits a receipt alone. tlb check run then runs four checks. A failure returns to the build, and a pass goes to the owner, who merges. The reviewer box is dashed because this release does not check the reviewer's identity.</desc>
+  <style>
+    text { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 13px; fill: #1f2328; }
+    .code { font-family: ui-monospace, Consolas, Menlo, monospace; font-size: 12px; }
+    .head { font-size: 14px; font-weight: 600; text-anchor: middle; }
+    .mid { text-anchor: middle; }
+    .edge { font-size: 12px; fill: #424a53; }
+    .box { fill: #ffffff; stroke: #1f2328; stroke-width: 1.5; }
+    .check { fill: #ddf4ff; stroke: #0550ae; stroke-width: 1.5; }
+    .open { fill: #fff8c5; stroke: #7d4e00; stroke-width: 1.5; stroke-dasharray: 6 4; }
+    .lane { fill: #f6f8fa; stroke: #d0d7de; }
+    .line { fill: none; stroke: #1f2328; stroke-width: 1.5; marker-end: url(#arrow); }
+    .back { fill: none; stroke: #a40e26; stroke-width: 1.5; stroke-dasharray: 3 3; marker-end: url(#arrowback); }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#1f2328"/></marker>
+    <marker id="arrowback" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#a40e26"/></marker>
+  </defs>
+
+  <rect width="900" height="736" fill="#ffffff"/>
+  <rect class="lane" x="20" y="14" width="200" height="640" rx="6"/>
+  <rect class="lane" x="240" y="14" width="200" height="640" rx="6"/>
+  <rect class="lane" x="460" y="14" width="200" height="640" rx="6"/>
+  <rect class="lane" x="680" y="14" width="200" height="640" rx="6"/>
+  <text class="head" x="120" y="38">Owner</text>
+  <text class="head" x="340" y="38">Agent</text>
+  <text class="head" x="560" y="38">Independent reviewer</text>
+  <text class="head" x="780" y="38">tlb command</text>
+
+  <!-- arrows sit under the boxes -->
+  <path class="line" d="M250 85 H120 V150"/>
+  <path class="line" d="M210 175 H690"/>
+  <path class="line" d="M780 200 V225 H340 V250"/>
+  <path class="line" d="M430 285 H560 V330"/>
+  <path class="back" d="M470 348 H400 V300"/>
+  <path class="line" d="M560 390 V445 H430"/>
+  <path class="line" d="M340 470 V530 H690"/>
+  <path class="back" d="M780 500 V262 H430"/>
+  <path class="line" d="M780 560 V615 H210"/>
+
+  <rect class="box" x="250" y="60" width="180" height="50" rx="5"/>
+  <text class="mid" x="340" y="81">1. Write the plan</text>
+  <text class="code mid" x="340" y="99">plans/&lt;id&gt;.toml</text>
+
+  <rect class="box" x="30" y="150" width="180" height="50" rx="5"/>
+  <text class="mid" x="120" y="171">2. Sign the plan commit</text>
+  <text class="mid" x="120" y="189">and merge it to main</text>
+
+  <rect class="check" x="690" y="150" width="180" height="50" rx="5"/>
+  <text class="mid" x="780" y="171">3. Valid and signed?</text>
+  <text class="code mid" x="780" y="189">tlb plan verify &lt;id&gt;</text>
+
+  <rect class="box" x="250" y="250" width="180" height="50" rx="5"/>
+  <text class="mid" x="340" y="271">4. Build on <tspan class="code">unit/&lt;id&gt;</tspan></text>
+  <text class="mid" x="340" y="289">inside <tspan class="code">allowed_paths</tspan></text>
+
+  <rect class="open" x="470" y="330" width="180" height="60" rx="5"/>
+  <text class="mid" x="560" y="350">5. Review the change</text>
+  <text class="mid" x="560" y="367">never the builder;</text>
+  <text class="mid" x="560" y="383">identity not checked yet</text>
+
+  <rect class="box" x="250" y="420" width="180" height="50" rx="5"/>
+  <text class="mid" x="340" y="441">6. Commit the receipt alone</text>
+  <text class="code mid" x="340" y="459">tlb receipt write &lt;id&gt;</text>
+
+  <rect class="check" x="690" y="500" width="180" height="60" rx="5"/>
+  <text class="mid" x="780" y="520">7. Tests, leak scan, path</text>
+  <text class="mid" x="780" y="536">scope and receipt all pass?</text>
+  <text class="code mid" x="780" y="552">tlb check run</text>
+
+  <rect class="box" x="30" y="590" width="180" height="50" rx="5"/>
+  <text class="mid" x="120" y="611">8. Merge the change</text>
+  <text class="mid" x="120" y="629">with a merge commit</text>
+
+  <text class="edge" x="452" y="168">the plan is on main</text>
+  <text class="edge" x="560" y="219">PASS: valid and signed</text>
+  <text class="edge" x="408" y="342" style="fill:#a40e26">findings</text>
+  <text class="edge" x="470" y="438">PASS</text>
+  <text class="edge" x="452" y="524">the last commit is the receipt</text>
+  <text class="edge" x="560" y="255" style="fill:#a40e26">FAIL: fix, then a new receipt</text>
+  <text class="edge" x="452" y="608">PASS: all four checks</text>
+
+  <rect class="open" x="20" y="670" width="860" height="52" rx="5"/>
+  <text x="34" y="691">Dashed box, not enforced in this release. Review identity from a CI run, CI workflows read from main and lesson filing are planned for 0.1.</text>
+  <text x="34" y="710">Blue boxes are scripts with no model in them. They run when someone runs them: no CI gate blocks a merge yet.</text>
+</svg>

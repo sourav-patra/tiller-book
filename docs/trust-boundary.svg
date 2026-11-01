@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 470" width="900" height="470" role="img" aria-labelledby="title desc">
+  <title id="title">Why an agent cannot widen its own limit</title>
+  <desc id="desc">The tlb checks read the plan and the signers file from origin/main, which changes only when someone with the merge right merges. They read the changed paths and the receipt from the unit branch, which the agent writes. A copy of the plan edited on the branch is not the one the checks use, so it cannot widen the limit; the edit counts as one more changed path. The boundary holds only while the agent cannot merge to main.</desc>
+  <style>
+    text { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 13px; fill: #1f2328; }
+    .code { font-family: ui-monospace, Consolas, Menlo, monospace; font-size: 12px; }
+    .head { font-size: 14px; font-weight: 600; text-anchor: middle; }
+    .mid { text-anchor: middle; }
+    .edge { font-size: 12px; fill: #424a53; }
+    .region { fill: #f6f8fa; stroke: #1f2328; stroke-width: 1.5; }
+    .agentregion { fill: #f6f8fa; stroke: #1f2328; stroke-width: 1.5; stroke-dasharray: 6 4; }
+    .box { fill: #ffffff; stroke: #1f2328; stroke-width: 1.5; }
+    .check { fill: #ddf4ff; stroke: #0550ae; stroke-width: 1.5; }
+    .open { fill: #fff8c5; stroke: #7d4e00; stroke-width: 1.5; stroke-dasharray: 6 4; }
+    .line { fill: none; stroke: #1f2328; stroke-width: 1.5; marker-end: url(#arrow); }
+    .refused { fill: none; stroke: #a40e26; stroke-width: 1.5; stroke-dasharray: 3 3; marker-end: url(#arrowback); }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#1f2328"/></marker>
+    <marker id="arrowback" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#a40e26"/></marker>
+  </defs>
+
+  <rect width="900" height="470" fill="#ffffff"/>
+
+  <rect class="region" x="20" y="14" width="240" height="290" rx="6"/>
+  <text class="head" x="140" y="38">origin/main</text>
+  <text class="mid" x="140" y="56">changed by whoever can merge</text>
+  <rect class="box" x="34" y="74" width="212" height="44" rx="5"/>
+  <text class="mid" x="140" y="93">Owner signs the plan commit</text>
+  <text class="mid" x="140" y="110">and merges it</text>
+  <rect class="box" x="34" y="142" width="212" height="44" rx="5"/>
+  <text class="code mid" x="140" y="161">plans/&lt;id&gt;.toml</text>
+  <text class="mid" x="140" y="178">the paths this unit may change</text>
+  <rect class="box" x="34" y="210" width="212" height="44" rx="5"/>
+  <text class="code mid" x="140" y="229">.github/allowed_signers</text>
+  <text class="mid" x="140" y="246">whose signature counts</text>
+  <path class="line" d="M140 118 V142"/>
+
+  <rect class="agentregion" x="640" y="14" width="240" height="290" rx="6"/>
+  <text class="head" x="760" y="38">unit/&lt;id&gt; branch</text>
+  <text class="mid" x="760" y="56">the agent writes here</text>
+  <rect class="box" x="654" y="74" width="212" height="44" rx="5"/>
+  <text class="mid" x="760" y="93">The change</text>
+  <text class="mid" x="760" y="110">paths in the net branch diff</text>
+  <rect class="box" x="654" y="142" width="212" height="44" rx="5"/>
+  <text class="code mid" x="760" y="161">receipts/&lt;id&gt;.json</text>
+  <text class="mid" x="760" y="178">the last commit, alone</text>
+  <rect class="box" x="654" y="210" width="212" height="44" rx="5"/>
+  <text class="mid" x="760" y="229">An edited copy of the plan</text>
+  <text class="mid" x="760" y="246">not the limit the checks use</text>
+
+  <rect class="check" x="360" y="110" width="180" height="84" rx="5"/>
+  <text class="mid" x="450" y="132">tlb checks: signed plan,</text>
+  <text class="mid" x="450" y="149">path scope, receipt</text>
+  <text class="mid" x="450" y="166">scripts with no model;</text>
+  <text class="mid" x="450" y="183">each prints PASS or FAIL</text>
+
+  <path class="line" d="M246 164 H360"/>
+  <text class="edge" x="280" y="156">reads plan</text>
+  <path class="line" d="M246 232 H300 V180 H360"/>
+  <text class="edge" x="306" y="212">reads signers</text>
+  <path class="line" d="M654 114 H540"/>
+  <text class="edge" x="556" y="107">reads paths</text>
+  <path class="line" d="M654 164 H540"/>
+  <text class="edge" x="556" y="157">reads receipt</text>
+  <path class="refused" d="M654 232 H450 V194"/>
+  <text class="edge" x="456" y="250" style="fill:#a40e26">counts as one more changed path</text>
+
+  <rect class="open" x="20" y="326" width="860" height="72" rx="5"/>
+  <text x="34" y="348">Limit: this boundary holds only while the agent cannot merge to main. An agent with the merge right could change</text>
+  <text x="34" y="367"><tspan class="code">.github/allowed_signers</tspan> and sign its own plans. tiller-book does not control who can merge: branch rules and who</text>
+  <text x="34" y="386">holds the login do. The dashed outline marks what the agent can write.</text>
+
+  <rect class="box" x="20" y="410" width="860" height="46" rx="5"/>
+  <text x="34" y="430">Solid outline: the checks read their limit from this side. A check that cannot run counts as a failure, so a missing tool never passes.</text>
+  <text x="34" y="447">The receipt check proves the receipt's shape and its binding to the head commit, not that the listed checks ran.</text>
+</svg>

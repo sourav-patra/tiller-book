@@ -1,8 +1,94 @@
 # tiller-book
 
+[![Status: 0.1.0-alpha](https://img.shields.io/badge/status-0.1.0--alpha-orange)](#what-is-enforced-now-and-what-is-not-yet)
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+[![Python 3.11 or later](https://img.shields.io/badge/python-3.11%2B-blue)](pyproject.toml)
+[![Checks run locally, no CI yet](https://img.shields.io/badge/checks-run%20locally%2C%20no%20CI%20yet-lightgrey)](#known-limits)
+
 Status: 0.1.0-alpha. Review identity from a CI run, CI workflows read from main, and lesson filing are not enforced yet. They are planned for 0.1.
 
-An agent's word is not evidence. tiller-book provides local checks for signed plans, changed paths and per-unit receipts. Independent review is part of the contribution process, but this release does not verify reviewer identity or require checks before merging.
+An agent's word is not evidence. You give tiller-book a plan a person signed and a branch an agent built. It gives you PASS or FAIL for each check and a receipt for the change, so you can decide whether to merge. It runs locally through the `tlb` command. Independent review is part of the contribution process, but this release does not verify reviewer identity or require checks before merging.
+
+## How a change moves
+
+![Four lanes: owner, agent, independent reviewer and the tlb command. The agent writes a plan, the owner signs and merges it, and tlb plan verify checks it. The agent builds on a unit branch, a reviewer who is not the builder reviews it, and the agent commits a receipt alone. tlb check run then runs four checks. A failure returns to the build, and a pass goes to the owner, who merges.](docs/change-flow.svg)
+
+The agent never decides that its own work passed: scripts decide steps 3 and 7, and a person decides steps 2 and 8. Step 5 is a process in this release, because nothing checks who the reviewer was, and no CI gate forces anyone to run steps 3 and 7.
+
+## Quick start
+
+You need Python 3.11 or later, git, `ssh-keygen` and `gitleaks` on `PATH`, and a full clone (not shallow) with `origin` pointing at the repository. The release gate also needs `grep` on `PATH`. A missing tool makes its check fail; nothing is skipped.
+
+From the root of a clone of this repository:
+
+```sh
+pip install -e ".[test]"
+tlb plan verify U1
+tlb check run
+```
+
+The `[test]` extra installs pytest, which the `tests` check runs. `tlb plan verify U1` prints `PASS` when `plans/U1.toml` on `origin/main` is valid and signed. `tlb check run` prints one line per check and a verdict, and exits 0 only if every required check passed.
+
+A passing run on main prints the lines below. The test suite takes about 5 minutes (measured on one Windows machine).
+
+```text
+PASS tests: exit 0
+PASS leak-scan: exit 0
+PASS path-scope: exit 0
+PASS receipt: exit 0
+PASS: all 4 required checks passed
+```
+
+## Use it in your own repository
+
+Install `tlb` into your project's environment. To pin a release, replace `main` with its tag.
+
+```sh
+pip install "tiller-book[test] @ git+https://github.com/sourav-patra/tiller-book.git@main"
+```
+
+1. Add three things to main:
+   - `.github/allowed_signers`, with one line for each signer: `<commit email> <key type> <public key>`;
+   - at least one pytest test, because the `tests` check runs `python -m pytest -q`;
+   - a `.gitignore` with `__pycache__/` and `.pytest_cache/`, because the receipt writer refuses untracked files.
+2. Write the plan as `plans/demo-1.toml`. A unit's plan must allow its own receipt.
+
+   ```toml
+   id = "demo-1"
+   title = "Add a greeting"
+   allowed_paths = ["src/", "receipts/demo-1.json"]
+   min_held_out_cases = 20
+   ```
+
+3. Sign the plan commit and put it on main. A squash or rebase merge rewrites the commit and loses the signature, so use a merge commit if it goes through a pull request.
+
+   ```sh
+   git add plans/demo-1.toml
+   git -c gpg.format=ssh -c user.signingkey=<path to your signing key> commit -S -m "plan: demo-1"
+   git push origin main
+   tlb plan verify demo-1
+   ```
+
+   ```text
+   PASS: plans/demo-1.toml at origin/main is valid and signed by a key in .github/allowed_signers at origin/main
+   ```
+
+4. Build on a branch named after the plan, commit the change, write the receipt, commit it alone, and run the checks.
+
+   ```sh
+   git switch -c unit/demo-1
+   # make the change inside allowed_paths and commit it
+   tlb receipt write demo-1 --agent <agent> --model <model> --model-call <model>,<input tokens>,<output tokens>,<cost in USD or ->
+   git add receipts/demo-1.json
+   git commit -m "receipt: demo-1"
+   tlb check run
+   ```
+
+   The last command prints the same five PASS lines as the quick start. If the diff from the merge base to `HEAD` holds a path outside `allowed_paths`, the path-scope check fails with the path named:
+
+   ```text
+   FAIL path-scope: exit 1: FAIL: outside allowed_paths of plans/demo-1.toml at origin/main: outside.txt
+   ```
 
 ## Who it is for
 
@@ -40,12 +126,18 @@ Every unit leaves a receipt, `receipts/<id>.json`, which must validate against `
 
 The receipt is the last commit of a unit and changes nothing else. Its `commits.head` names that commit's parent, and its `commits.start` names the merge base with `origin/main`.
 
+## Why an agent cannot widen its own limit
+
+![The tlb checks read the plan and the signers file from origin/main, and read the changed paths and the receipt from the unit branch. A copy of the plan edited on the branch is not the one the checks use, so it cannot widen the limit. The boundary holds only while the agent cannot merge to main.](docs/trust-boundary.svg)
+
+The checks read the limit from `origin/main` and the work from the branch, so a plan edited on the branch cannot widen the limit for that check. The edit counts as one more changed path: in a build it fails unless the signed plan allows that path. A change made only of plan files passes these checks, and such a plan counts only once a signed commit brings it onto main. All of this depends on who can merge, which tiller-book does not control.
+
 ## What is enforced now and what is not yet
 
 | Item | Status | What it does | Command | Code |
 |---|---|---|---|---|
 | Signed plans | Enforced now | Fails unless the plan is on the ref, valid against `tiller_book/schemas/plan.schema.json`, and last written by a commit signed with a key in `.github/allowed_signers` on `origin/main` | `tlb plan verify <id>` | `tiller_book/plan/verify.py` |
-| Path scope from main | Enforced now | For build changes, verifies the signed plan on `origin/main` and fails on any path outside its `allowed_paths`; a build that edits its own plan fails too. No changes, and plan-class changes (only `plans/<id>.toml` files), pass without this validation | run by `tlb check run` | `tiller_book/checks/floor/path_scope.py` |
+| Path scope from main | Enforced now | For build changes, verifies the signed plan on `origin/main` and fails on any path outside its `allowed_paths`; a build's edit to its own plan counts as one more changed path and cannot widen the limit. No changes, and plan-class changes (only `plans/<id>.toml` files), pass without this validation | run by `tlb check run` | `tiller_book/checks/floor/path_scope.py` |
 | Receipt check | Enforced now | For build changes, requires a valid signed plan and a receipt-only last commit whose receipt validates and names its parent and the merge base. No changes, and plan-class changes, pass without receipt validation | run by `tlb check run` | `tiller_book/checks/floor/receipt.py` |
 | Fail-closed runner | Enforced now | Runs the registered checks (tests, gitleaks leak scan, path scope, receipt); a failure, timeout, missing tool or command that cannot start counts as a failure, and it exits 0 only if every required check passed | `tlb check run` | `tiller_book/checks/__init__.py`, `tiller_book/checks/registry.py` |
 | Release gate | Enforced now | Deny-list on the HEAD tree and every reachable object, noreply author, committer and tagger addresses, gitleaks, the `VISION.md` lock, and the registered checks, with `HEAD` equal to `origin/main`; a missing tool or deny-list file is a failure | `tlb release gate --denylist PATH` | `tiller_book/release/` |
@@ -58,37 +150,15 @@ The receipt is the last commit of a unit and changes nothing else. Its `commits.
 ## Known limits
 
 - CODEOWNERS only requests a review from the owner and enforces nothing.
+- tiller-book does not control who can merge. An agent that can merge to main can change `.github/allowed_signers` and sign its own plans, so keep the merge right with a person.
 - The ruleset on main keeps the owner's bypass actors, so an admin push skips the pull-request gates, though `tlb plan verify` still checks plan signatures.
+- Path scope compares the merge base with `HEAD`, so a path changed and then reverted on the branch does not appear.
 - The receipt check proves the receipt's shape and its binding to the head commit, not that the listed checks ran.
 - A diff fed to a model reviewer can steer its verdict, so review is never the only gate.
 - Token counts and costs in a receipt are reported by the caller, because `tlb receipt write` cannot see a model session.
 - With the default checkout, a GitHub `pull_request` event checks out a merge ref, so CI must check out the pull request's head commit for the receipt check.
-- The release gate's deny-list step drops each commit's `gpgsig` header and each tag's signature block before matching, so text placed inside a signature is not checked by that step.
 - There is no watchdog or escalation for a stalled or failed run; the receipt writer records failing checks in the receipt.
 - The release gate skips signature blocks in commit headers and tag trailers, because their random text matches short deny-list terms by chance. A commit crafted to hide text inside a fake signature header would pass the deny-list step.
-
-## Quick start
-
-You need Python 3.11 or later, git, `ssh-keygen` and `gitleaks` on `PATH`, and a full clone (not shallow) with `origin` pointing at the repository. The release gate also needs `grep` on `PATH`. A missing tool makes its check fail; nothing is skipped.
-
-From the root of a clone:
-
-```sh
-pip install -e ".[test]"
-tlb plan verify U1
-tlb check run
-```
-
-The `[test]` extra installs pytest, which the `tests` check runs. `tlb plan verify U1` prints `PASS` when `plans/U1.toml` on `origin/main` is valid and signed. `tlb check run` prints one line per check and a verdict, and exits 0 only if every required check passed.
-
-To finish a unit on a branch named `unit/<id>`, write its receipt, commit it alone, and run the checks again:
-
-```sh
-tlb receipt write <id> --agent <agent> --model <model> --model-call <model>,<input tokens>,<output tokens>,<cost in USD or ->
-git add receipts/<id>.json
-git commit -m "receipt: <id>"
-tlb check run
-```
 
 ## Commands
 
