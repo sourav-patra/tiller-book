@@ -1,0 +1,5 @@
+id = "REL1"
+title = "Release 0.1.0-alpha: set the package version and ship the schemas inside the package"
+allowed_paths = ["pyproject.toml","schemas/","tiller_book/schemas/","tiller_book/plan/verify.py","tests/","README.md","CONTRIBUTING.md","receipts/REL1.json"]
+min_held_out_cases = 20
+model_calls = []
