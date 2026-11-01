@@ -1,0 +1,96 @@
+{
+  "schema_version": "0.1",
+  "unit": "REL1",
+  "runner": {
+    "agent": "claude-code",
+    "model": "claude-opus-5-5"
+  },
+  "commits": {
+    "start": "8ec0e1dca9c251f7d39ac14bbd7b2c6667f30f7c",
+    "head": "679fa95f219aa39448eff39a970707c2e871fda0"
+  },
+  "model_calls": [],
+  "checks": [
+    {
+      "name": "tests",
+      "command": "python -m pytest -q",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "leak-scan",
+      "command": "gitleaks git .",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "path-scope",
+      "command": "python -m tiller_book.checks.floor.path_scope",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "plan verify REL1 on origin/main",
+      "command": "tlb plan verify REL1",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "deny-list",
+      "command": ".git/hooks/pre-push",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "exit 0"
+    },
+    {
+      "name": "clean non-editable install",
+      "command": "pip install tiller-book[test] from unit/REL1 into an empty venv, then tlb plan verify U1 from a clone",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "version 0.1.0a0, both schemas installed, plan verify printed PASS; on main before this unit the same check failed on a missing schema file"
+    },
+    {
+      "name": "independent review round one (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit 8c2310e",
+      "status": "FAIL",
+      "exit_code": 0,
+      "reason": "two findings: the old schema path at CONTRIBUTING.md line 51, closed in c736070; release notes draft prerequisites, closed in the draft"
+    },
+    {
+      "name": "independent review round two (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit c736070",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "both findings closed; no findings"
+    }
+  ],
+  "refusals": [],
+  "evidence": [
+    {
+      "location": "owner notes store, REL1 review, rounds one and two",
+      "what": "review verdicts and findings"
+    }
+  ],
+  "not_measured": [
+    {
+      "claim": "model tokens and cost of the Claude Code session that built REL1",
+      "command": "/cost in that Claude Code session"
+    },
+    {
+      "claim": "review rounds one and two used 49,966 and 47,488 tokens in total by the codex log; the input and output split and the cost were not recorded",
+      "command": "rerun the review with codex exec --json and read the usage fields"
+    },
+    {
+      "claim": "an independent run of the clean install; the reviewer's sandbox could not create a venv",
+      "command": "the CI test job planned for 0.1 on the head commit"
+    },
+    {
+      "claim": "receipt check, skipped by the writer",
+      "command": "tlb check run"
+    }
+  ]
+}
