@@ -263,6 +263,41 @@ def test_name_of_a_renamed_file_with_unchanged_content_is_counted(repo, denylist
         "FAIL deny-list: 0 matching lines in 0 files at HEAD, 1 matching lines across ")
 
 
+def test_pattern_spanning_a_historical_directory_and_file_name_is_counted(repo, tmp_path, capsys):
+    deny = tmp_path / "paths.txt"
+    deny.write_text("plumbar/vexmoor\n", newline="\n")
+    commit(repo, {"plumbar/vexmoor.txt": "clean\n"}, "add")
+    git(repo, "mv", "plumbar/vexmoor.txt", "clean.txt")
+    git(repo, "commit", "-q", "-m", "move")
+    publish(repo)
+    assert fails(repo, deny, capsys, "deny-list").startswith(
+        "FAIL deny-list: 0 matching lines in 0 files at HEAD, 1 matching lines across ")
+
+
+def test_grafts_file_fails_the_head_step(repo, denylist, capsys):
+    commit(repo, {"notes.txt": f"{TERM}\n"}, "add")
+    commit(repo, {"notes.txt": "gone\n"}, "remove")
+    publish(repo)
+    hidden_parent_cut = git(repo, "rev-parse", "HEAD").strip()
+    grafts = repo / git(repo, "rev-parse", "--git-path", "info/grafts").strip()
+    grafts.parent.mkdir(parents=True, exist_ok=True)
+    grafts.write_text(hidden_parent_cut + "\n", newline="\n")
+    assert "a grafts file exists" in fails(repo, denylist, capsys, "head")
+
+
+def test_graft_file_variable_fails_the_head_step(repo, denylist, capsys, monkeypatch, tmp_path):
+    monkeypatch.setenv("GIT_GRAFT_FILE", str(tmp_path / "grafts"))
+    assert "GIT_GRAFT_FILE is set" in fails(repo, denylist, capsys, "head")
+
+
+def test_shallow_clone_fails_the_head_step(repo, denylist, capsys, tmp_path):
+    commit(repo, {"more.txt": "x\n"}, "more")
+    publish(repo)
+    shallow = tmp_path / "shallow"
+    git(tmp_path, "clone", "-q", "--depth", "1", "-c", "core.autocrlf=false", repo.as_uri(), "shallow")
+    assert "the clone is shallow" in fails(shallow, denylist, capsys, "head")
+
+
 def test_term_in_a_branch_name_is_counted(repo, denylist, capsys):
     git(repo, "branch", f"{TERM}-work")
     fails(repo, denylist, capsys, "deny-list")

@@ -53,6 +53,14 @@ def head_is_main(repo):
         return False, f"HEAD or {REF} does not resolve to a commit"
     if head != main:
         return False, f"HEAD {head[:12]} is not {REF} {main[:12]}; the gate checks what will be published"
+    # grafts and a shallow clone change which history git shows, so every later step would scan less
+    if os.environ.get("GIT_GRAFT_FILE"):
+        return False, "GIT_GRAFT_FILE is set; grafts can hide history"
+    grafts = _git(repo, "rev-parse", "--git-path", "info/grafts")[1].strip()
+    if grafts and (Path(repo) / grafts).exists():
+        return False, "a grafts file exists; grafts can hide history"
+    if _git(repo, "rev-parse", "--is-shallow-repository")[1].strip() != "false":
+        return False, "the clone is shallow or its depth cannot be read; the gate needs full history"
     return True, f"HEAD is {REF} {main[:12]}"
 
 
@@ -109,24 +117,45 @@ def _reachable(repo):
     return objects
 
 
-def _tree_names(oid, body):
-    """Entry names of a raw tree: repeated `<mode> <name>NUL<binary id>`."""
-    names, pos, idlen = [], 0, len(oid) // 2
+def _tree_entries(oid, body):
+    """Entries of a raw tree: repeated `<mode> <name>NUL<binary id>`, as (mode, name, hex id)."""
+    entries, pos, idlen = [], 0, len(oid) // 2
     while pos < len(body):
-        nul = body.index(b"\0", pos)
-        names.append(body[body.index(b" ", pos) + 1:nul])
+        sp, nul = body.index(b" ", pos), body.index(b"\0", pos)
+        entries.append((body[pos:sp], body[sp + 1:nul], body[nul + 1:nul + 1 + idlen].hex().encode()))
         pos = nul + 1 + idlen
-    return names
+    return entries
+
+
+def _full_paths(trees):
+    """Every full path under every root tree (a tree no other reachable tree contains)."""
+    children = {c for entries in trees.values() for mode, _, c in entries if mode == b"40000"}
+    below = {}
+
+    def paths(oid):
+        if oid not in below:
+            below[oid] = set()
+            for mode, name, child in trees.get(oid, ()):
+                below[oid].add(name)
+                if mode == b"40000":
+                    below[oid].update(name + b"/" + p for p in paths(child))
+        return below[oid]
+
+    out = set()
+    for root in trees.keys() - children:
+        out |= paths(root)
+    return sorted(out)
 
 
 def _reachable_text(repo):
     """Return (object count, the text to grep).
 
     Commits lose their gpgsig header and tags a trailing signature block; blobs are kept in full;
-    trees are binary, so the entry names of every tree stand in for them; ref names are added.
+    trees are binary, so every full path under every root tree stands in for them; ref names are added.
     """
     objects = _reachable(repo)
     parts = _git_bytes(repo, "for-each-ref", "--format=%(refname)").splitlines()
+    parts.extend(_full_paths({oid: _tree_entries(oid, body) for oid, kind, body in objects if kind == b"tree"}))
     for oid, kind, body in objects:
         # Signatures are skipped to avoid chance hits in base64; limit: a crafted fake signature can hide text.
         if kind == b"commit":
@@ -135,8 +164,6 @@ def _reachable_text(repo):
             parts.append(_without_tag_signature(body))
         elif kind == b"blob":
             parts.append(body)
-        elif kind == b"tree":
-            parts.extend(_tree_names(oid, body))
     return len(objects), b"\n".join(parts) + b"\n"
 
 
