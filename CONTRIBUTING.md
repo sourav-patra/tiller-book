@@ -8,7 +8,7 @@ tiller-book is built with its own rules. Every change is a unit, and every unit 
 2. Owner signature. The owner signs the plan commit with an SSH key listed in `.github/allowed_signers` and merges the pull request with "Create a merge commit". A squash or rebase merge rewrites the commit, so the plan loses its signature. `tlb plan verify <id>` passes once the signed plan is on main.
 3. Build. Work on a branch named `unit/<id>`, made from `origin/main`, and change only paths inside the plan's `allowed_paths`. The path-scope check reads the plan from `origin/main`, so editing the plan in the build branch does not widen it.
 4. Independent review. A reviewer that did not build the change, a person or a different agent, reads the change and the source. Record each review round as a `checks[]` item in the receipt.
-5. Receipt-only last commit. Run `tlb receipt write <id>`, then commit `receipts/<id>.json` alone as the last commit of the branch. Any commit after it makes the receipt check fail. `tlb check run` on the branch must pass.
+5. Receipt-only last commit. Run `tlb receipt write <id>`, then commit `receipts/<id>.json` alone as the last commit of the branch. A code commit after it makes the receipt check fail, and the unit then needs a new receipt-only last commit. `tlb check run` on the branch must pass.
 6. Merge commit. The owner merges the build pull request with "Create a merge commit", so the plan, the build commits and the receipt all stay in the history.
 
 ## Commit identity
