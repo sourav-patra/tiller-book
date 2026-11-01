@@ -2,6 +2,7 @@
 
 import json
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -180,6 +181,16 @@ def test_recorded_commands_name_python_not_the_local_interpreter_path(work, caps
     commands = [c["command"] for c in written(work)["checks"]]
     assert commands and all(c.startswith("python -c ") for c in commands)
     assert not any(sys.executable in c or str(Path(sys.executable).parent) in c for c in commands)
+
+
+def test_only_the_interpreter_in_first_position_is_renamed(work, capsys, monkeypatch):
+    from tiller_book.checks import Check
+    echo = Check("tests", (sys.executable, "-c", "import sys; print(sys.argv[1])", sys.executable))
+    monkeypatch.setattr(registry, "CHECKS", [echo, ok("path-scope"), fails("receipt")])
+    code_commit(work)
+    assert write(work, capsys)[0] == 0
+    recorded = written(work)["checks"][0]["command"]
+    assert recorded == shlex.join(["python", "-c", "import sys; print(sys.argv[1])", sys.executable])
 
 
 def test_skip_tests_alone_still_skips_the_receipt_check(work, capsys):
