@@ -1,0 +1,5 @@
+id = "U8"
+title = "README, CONTRIBUTING and LICENSE (SCOPE item 11)"
+allowed_paths = ["README.md","CONTRIBUTING.md","LICENSE","docs/",".gitignore","receipts/U8.json"]
+min_held_out_cases = 20
+model_calls = []

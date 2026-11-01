@@ -1,0 +1,5 @@
+id = "U9"
+title = "Release gate (SCOPE item 12)"
+allowed_paths = ["tiller_book/release/","tiller_book/cli.py","tests/","receipts/U9.json"]
+min_held_out_cases = 20
+model_calls = []
