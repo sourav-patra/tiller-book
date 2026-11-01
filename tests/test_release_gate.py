@@ -4,17 +4,21 @@ import hashlib
 import random
 import shutil
 import string
+import subprocess
 import sys
 
 import pytest
 from test_plan_verify import commit, git, keygen, signers_line
 
-from tiller_book import cli
+from tiller_book import cli, release
 from tiller_book.checks import Check, registry
+from tiller_book.plan import verify
 
 NOREPLY = "1+test@users.noreply.github.com"
 VISION = "# Vision\n\nInvented text for a test.\n"
-TERMS = "zorblatt\nquillfen\n"  # invented; neither is in any real deny-list
+TERM = "zorblatt"  # invented, like everything below; none of it is in any real deny-list
+ADDR = "quillfen@oxbrindle.example"
+SECRETS = (TERM, "quillfen", "oxbrindle")
 REAL_WHICH = shutil.which
 
 pytestmark = pytest.mark.skipif(REAL_WHICH("ssh-keygen") is None or REAL_WHICH("grep") is None,
@@ -30,6 +34,32 @@ def publish(repo):
     git(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
 
 
+def commit_bytes(repo, name, data, message):
+    (repo / name).write_bytes(data)
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", message)
+
+
+def token():
+    return "ghp_" + "".join(random.choices(string.ascii_letters + string.digits, k=36))  # built at run time
+
+
+def clean(out):
+    """No invented term or address placed in the triggering input reaches the gate's output."""
+    assert not [s for s in SECRETS if s in out.lower()], out
+    assert "Traceback" not in out
+
+
+def init(path, key):
+    path.mkdir()
+    git(path, "init", "-q", "-b", "main")
+    for k, v in {"user.email": NOREPLY, "user.name": "Test", "commit.gpgsign": "false",
+                 "gpg.format": "ssh", "core.autocrlf": "false"}.items():
+        git(path, "config", k, v)
+    commit(path, {".github/allowed_signers": signers_line(key)}, "bootstrap", key)
+    return path
+
+
 @pytest.fixture(autouse=True)
 def passing_checks(monkeypatch):
     monkeypatch.setattr(registry, "CHECKS", [Check("ok", (sys.executable, "-c", "pass"))])
@@ -42,13 +72,7 @@ def key(tmp_path):
 
 @pytest.fixture
 def repo(tmp_path, key):
-    r = tmp_path / "repo"
-    r.mkdir()
-    git(r, "init", "-q", "-b", "main")
-    for k, v in {"user.email": NOREPLY, "user.name": "Test", "commit.gpgsign": "false",
-                 "gpg.format": "ssh", "core.autocrlf": "false"}.items():
-        git(r, "config", k, v)
-    commit(r, {".github/allowed_signers": signers_line(key)}, "bootstrap", key)
+    r = init(tmp_path / "repo", key)
     commit(r, {"VISION.md": VISION, "locks/VISION.md.sha256": lock_text(VISION)}, "lock vision", key)
     publish(r)
     return r
@@ -57,7 +81,7 @@ def repo(tmp_path, key):
 @pytest.fixture
 def denylist(tmp_path):
     p = tmp_path / "deny.txt"
-    p.write_text(TERMS, newline="\n")
+    p.write_text(f"{TERM}\nquillfen\n", newline="\n")
     return p
 
 
@@ -70,6 +94,13 @@ def step(out, name):
     return next(line for line in out.splitlines() if line.split(" ", 1)[1].startswith(f"{name}:"))
 
 
+def fails(repo, denylist, capsys, name):
+    code, out = run(repo, denylist, capsys)
+    assert code == 1 and step(out, name).startswith(f"FAIL {name}: "), out
+    clean(out)
+    return step(out, name)
+
+
 @needs_gitleaks
 def test_clean_repository_passes_every_step(repo, denylist, capsys):
     code, out = run(repo, denylist, capsys)
@@ -79,31 +110,33 @@ def test_clean_repository_passes_every_step(repo, denylist, capsys):
     assert out.splitlines()[-1] == "PASS: all 6 release steps passed"
 
 
+# head
+
 def test_head_not_origin_main_fails(repo, denylist, capsys):
     commit(repo, {"later.txt": "x\n"}, "not yet on main")
-    code, out = run(repo, denylist, capsys)
-    assert code == 1
-    assert "is not origin/main" in step(out, "head") and step(out, "head").startswith("FAIL ")
-    assert out.splitlines()[-1].startswith("FAIL: release steps not PASS: head")
+    assert "is not origin/main" in fails(repo, denylist, capsys, "head")
 
+
+def test_head_failure_prints_no_commit_text_or_address(repo, denylist, capsys):
+    git(repo, "-c", f"user.email={ADDR}", "commit", "-q", "--allow-empty", "-m", f"{TERM} {ADDR}")
+    fails(repo, denylist, capsys, "head")
+
+
+# deny-list
 
 def test_deny_list_hit_is_reported_by_count_without_the_text(repo, denylist, capsys):
-    commit(repo, {"notes.txt": "a Zorblatt here\nand QUILLFEN there\nclean line\n"}, "notes mention zorblatt")
+    commit(repo, {"notes.txt": f"a Zorblatt here\nand {ADDR.upper()} there\nclean line\n"}, "notes mention zorblatt")
     publish(repo)
-    code, out = run(repo, denylist, capsys)
-    assert code == 1
-    assert step(out, "deny-list") == ("FAIL deny-list: 2 matching lines in 1 files at HEAD, "
-                                      "3 matching lines in git log -p -m --all")
-    assert "zorblatt" not in out.lower() and "quillfen" not in out.lower()
+    assert fails(repo, denylist, capsys, "deny-list").startswith(
+        "FAIL deny-list: 2 matching lines in 1 files at HEAD, 3 matching lines across ")
 
 
 def test_deny_list_hit_in_history_only_fails(repo, denylist, capsys):
-    commit(repo, {"notes.txt": "zorblatt\n"}, "add")
+    commit(repo, {"notes.txt": f"{TERM}\n"}, "add")
     commit(repo, {"notes.txt": "gone\n"}, "remove")
     publish(repo)
-    code, out = run(repo, denylist, capsys)
-    assert code == 1
-    assert step(out, "deny-list").startswith("FAIL deny-list: 0 matching lines in 0 files at HEAD, 2 matching")
+    assert fails(repo, denylist, capsys, "deny-list").startswith(
+        "FAIL deny-list: 0 matching lines in 0 files at HEAD, 1 matching lines across ")
 
 
 def test_deny_list_hit_introduced_only_by_a_merge_commit_fails(repo, denylist, capsys):
@@ -112,58 +145,155 @@ def test_deny_list_hit_introduced_only_by_a_merge_commit_fails(repo, denylist, c
     git(repo, "switch", "-q", "main")
     commit(repo, {"main.txt": "main\n"}, "main")
     git(repo, "merge", "-q", "--no-commit", "--no-ff", "side")
-    (repo / "evil.txt").write_text("zorblatt\n", newline="\n")
+    (repo / "evil.txt").write_text(f"{TERM}\n", newline="\n")
     git(repo, "add", "evil.txt")
     git(repo, "commit", "-q", "-m", "merge side")
     commit(repo, {"evil.txt": "clean\n"}, "tidy")
     publish(repo)
-    code, out = run(repo, denylist, capsys)
-    assert code == 1
-    assert step(out, "deny-list").startswith("FAIL deny-list: 0 matching lines in 0 files at HEAD, ")
-    assert "0 matching lines in git log" not in step(out, "deny-list")
+    reason = fails(repo, denylist, capsys, "deny-list")
+    assert reason.startswith("FAIL deny-list: 0 matching lines in 0 files at HEAD, ")
+    assert "0 matching lines across" not in reason
+
+
+def test_binary_file_at_head_fails(repo, denylist, capsys):
+    commit_bytes(repo, "blob.bin", b"\x00\x01" + TERM.encode() + b"\x00\xff", "add data")
+    publish(repo)
+    fails(repo, denylist, capsys, "deny-list")
+
+
+def test_binary_file_only_in_history_fails(repo, denylist, capsys):
+    commit_bytes(repo, "blob.bin", b"\x00\x01" + TERM.encode() + b"\x00\xff", "add data")
+    git(repo, "rm", "-q", "blob.bin")
+    git(repo, "commit", "-q", "-m", "remove data")
+    publish(repo)
+    assert "0 files at HEAD" in fails(repo, denylist, capsys, "deny-list")
+
+
+def test_annotated_tag_message_fails(repo, denylist, capsys):
+    git(repo, "tag", "-a", "v1", "-m", f"release {TERM}")
+    fails(repo, denylist, capsys, "deny-list")
+
+
+def test_ref_pointing_at_a_blob_fails(repo, denylist, capsys, tmp_path):
+    loose = tmp_path / "loose.txt"
+    loose.write_text(f"{TERM}\n", newline="\n")
+    blob = git(repo, "hash-object", "-w", str(loose)).strip()
+    git(repo, "update-ref", "refs/tags/loose", blob)
+    fails(repo, denylist, capsys, "deny-list")
+
+
+def test_git_note_fails(repo, denylist, capsys):
+    git(repo, "notes", "add", "-m", TERM, "HEAD")
+    fails(repo, denylist, capsys, "deny-list")
+
+
+def test_root_commit_on_another_branch_fails_with_show_root_off(repo, denylist, capsys):
+    git(repo, "config", "log.showRoot", "false")
+    git(repo, "switch", "-q", "--orphan", "other")
+    commit(repo, {"root.txt": f"{TERM}\n"}, "root")
+    git(repo, "switch", "-q", "main")
+    fails(repo, denylist, capsys, "deny-list")
+
+
+def write_object(repo, kind, body):
+    return subprocess.run(["git", "-C", str(repo), "hash-object", "-t", kind, "-w", "--stdin"], input=body,
+                          capture_output=True, check=True).stdout.decode().strip()
+
+
+def crafted_commit(repo, signature_text, message):
+    tree, parent = git(repo, "rev-parse", "HEAD^{tree}").strip(), git(repo, "rev-parse", "HEAD").strip()
+    who = f"Test <{NOREPLY}> 1700000000 +0000"
+    body = (f"tree {tree}\nparent {parent}\nauthor {who}\ncommitter {who}\n"
+            f"gpgsig -----BEGIN PGP SIGNATURE-----\n \n wsBc{signature_text}AA==\n =ab12\n -----END PGP SIGNATURE-----\n"
+            f"\n{message}\n")
+    git(repo, "update-ref", "refs/heads/main", write_object(repo, "commit", body.encode()))
+    publish(repo)
+
+
+def test_term_inside_a_commit_signature_header_is_not_counted(repo, denylist, capsys):
+    crafted_commit(repo, TERM, "web merge")
+    assert step(run(repo, denylist, capsys)[1], "deny-list").startswith("PASS deny-list: 0 matching lines")
+
+
+def test_term_in_the_commit_message_is_counted(repo, denylist, capsys):
+    crafted_commit(repo, TERM, f"merge {TERM}")
+    assert " 1 matching lines across " in fails(repo, denylist, capsys, "deny-list")
+
+
+def test_term_inside_a_tag_signature_block_is_not_counted(repo, denylist, capsys):
+    head = git(repo, "rev-parse", "HEAD").strip()
+    body = (f"object {head}\ntype commit\ntag v1\ntagger Test <{NOREPLY}> 1700000000 +0000\n\nrelease\n"
+            f"-----BEGIN SSH SIGNATURE-----\nU1NIU0lH{TERM}AAAA\n-----END SSH SIGNATURE-----\n")
+    git(repo, "update-ref", "refs/tags/v1", write_object(repo, "tag", body.encode()))
+    assert step(run(repo, denylist, capsys)[1], "deny-list").startswith("PASS deny-list: 0 matching lines")
+
+
+def test_fake_signature_block_in_a_file_is_counted(repo, denylist, capsys):
+    fake = f"gpgsig {TERM}\n-----BEGIN PGP SIGNATURE-----\n\n{TERM}\n-----END PGP SIGNATURE-----\n"
+    commit(repo, {"fake.txt": fake}, "add a file")
+    publish(repo)
+    assert fails(repo, denylist, capsys, "deny-list").startswith(
+        "FAIL deny-list: 2 matching lines in 1 files at HEAD, 2 matching lines across ")
+
+
+def test_term_in_a_path_name_is_counted(repo, denylist, capsys):
+    commit(repo, {f"docs/{TERM}/notes.txt": "clean\n"}, "add a file")
+    publish(repo)
+    assert fails(repo, denylist, capsys, "deny-list").startswith(
+        "FAIL deny-list: 0 matching lines in 0 files at HEAD, ")
+
+
+def test_object_only_in_the_reflog_is_not_scanned(repo, denylist, capsys):
+    commit(repo, {"notes.txt": f"{TERM}\n"}, "dropped before publishing")
+    git(repo, "reset", "-q", "--hard", "HEAD~1")
+    assert step(run(repo, denylist, capsys)[1], "deny-list").startswith("PASS deny-list: 0 matching lines")
 
 
 def test_uncommitted_working_tree_text_is_not_what_the_gate_scans(repo, denylist, capsys):
-    (repo / "VISION.md").write_text("zorblatt\n", newline="\n")
+    (repo / "VISION.md").write_text(f"{TERM}\n", newline="\n")
     code, out = run(repo, denylist, capsys)
     assert step(out, "deny-list").startswith("PASS deny-list: 0 matching lines in 0 files at HEAD, 0 ")
 
 
 def test_crlf_deny_list_still_matches(repo, tmp_path, capsys):
     crlf = tmp_path / "crlf.txt"
-    crlf.write_bytes(b"zorblatt\r\n")
-    commit(repo, {"notes.txt": "zorblatt\n"}, "add")
+    crlf.write_bytes(TERM.encode() + b"\r\n")
+    commit(repo, {"notes.txt": f"{TERM}\n"}, "add")
     publish(repo)
-    assert step(run(repo, crlf, capsys)[1], "deny-list").startswith("FAIL deny-list: 1 matching lines")
+    assert fails(repo, crlf, capsys, "deny-list").startswith("FAIL deny-list: 1 matching lines")
 
 
-def test_missing_deny_list_fails(repo, tmp_path, capsys):
-    code, out = run(repo, tmp_path / "absent.txt", capsys)
-    assert code == 1
-    assert step(out, "deny-list").startswith("FAIL deny-list: could not run: deny-list")
-    assert "is not readable" in out and "Traceback" not in out
+def test_missing_deny_list_fails_without_the_path(repo, tmp_path, capsys):
+    reason = fails(repo, tmp_path / f"{TERM}-{ADDR}.txt", capsys, "deny-list")
+    assert reason == "FAIL deny-list: could not run: deny-list file not readable"
 
 
 def test_deny_list_with_no_patterns_fails(repo, tmp_path, capsys):
-    blank = tmp_path / "blank.txt"
+    blank = tmp_path / f"{TERM}.txt"
     blank.write_text("\n  \n")
-    assert "has no patterns" in step(run(repo, blank, capsys)[1], "deny-list")
+    assert fails(repo, blank, capsys, "deny-list") == "FAIL deny-list: could not run: deny-list file has no patterns"
 
 
-def test_missing_grep_fails(repo, denylist, capsys, monkeypatch):
+def test_invalid_pattern_fails_without_echoing_it(repo, tmp_path, capsys):
+    bad = tmp_path / "bad.txt"
+    bad.write_text(f"{TERM}[\n{ADDR}\n", newline="\n")
+    assert "could not run: git grep exited" in fails(repo, bad, capsys, "deny-list")
+
+
+def test_missing_grep_fails(repo, tmp_path, capsys, monkeypatch):
+    deny = tmp_path / f"{TERM}.txt"
+    deny.write_text(f"{TERM}\n")
     monkeypatch.setattr(shutil, "which", lambda name: None if name == "grep" else REAL_WHICH(name))
-    code, out = run(repo, denylist, capsys)
-    assert code == 1
-    assert step(out, "deny-list") == "FAIL deny-list: could not run: grep not on PATH"
+    assert fails(repo, deny, capsys, "deny-list") == "FAIL deny-list: could not run: grep not on PATH"
 
+
+# identities
 
 def test_non_noreply_identity_fails_without_the_address(repo, denylist, capsys):
-    git(repo, "-c", "user.email=someone@example.com", "commit", "-q", "--allow-empty", "-m", "other identity")
+    git(repo, "-c", f"user.email={ADDR}", "commit", "-q", "--allow-empty", "-m", "other identity")
     publish(repo)
-    code, out = run(repo, denylist, capsys)
-    assert code == 1
-    assert step(out, "identities").startswith("FAIL identities: 1 of 2 author and committer addresses")
-    assert "someone" not in out
+    assert fails(repo, denylist, capsys, "identities").startswith(
+        "FAIL identities: 1 of 2 author and committer addresses")
 
 
 def test_web_flow_committer_passes_identities(repo, denylist, capsys):
@@ -172,67 +302,121 @@ def test_web_flow_committer_passes_identities(repo, denylist, capsys):
     assert step(run(repo, denylist, capsys)[1], "identities").startswith("PASS identities: all 2")
 
 
+# leak-scan
+
 @needs_gitleaks
-def test_leaked_secret_fails_leak_scan(repo, denylist, capsys):
-    token = "ghp_" + "".join(random.choices(string.ascii_letters + string.digits, k=36))  # built at run time
-    commit(repo, {"config.txt": f"token = {token}\n"}, "oops")
+def test_leaked_secret_in_a_commit_fails_leak_scan(repo, denylist, capsys):
+    secret = token()
+    commit(repo, {"config.txt": f"token = {secret}\n"}, "oops")
     publish(repo)
+    reason = fails(repo, denylist, capsys, "leak-scan")
+    assert reason.startswith("FAIL leak-scan: gitleaks git exit 1, gitleaks dir exit 0")
+    assert secret not in reason
+
+
+@needs_gitleaks
+def test_leaked_secret_in_an_annotated_tag_message_fails_leak_scan(repo, denylist, capsys):
+    secret = token()
+    git(repo, "tag", "-a", "v1", "-m", f"token = {secret}")
     code, out = run(repo, denylist, capsys)
-    assert code == 1
-    assert step(out, "leak-scan").startswith("FAIL leak-scan: gitleaks git .: exit")
-    assert token not in out
+    assert step(out, "leak-scan").startswith("FAIL leak-scan: gitleaks git exit 0, gitleaks dir exit 1"), out
+    assert secret not in out
+
+
+@needs_gitleaks
+def test_gitleaks_config_error_prints_none_of_its_output(repo, denylist, capsys):
+    commit(repo, {".gitleaks.toml": f"[[rules]]\nid = \"{TERM} {ADDR}\"\nregex = '''(['''\n"}, "config")
+    publish(repo)
+    fails(repo, denylist, capsys, "leak-scan")
 
 
 def test_missing_gitleaks_fails(repo, denylist, capsys, monkeypatch):
     monkeypatch.setattr(shutil, "which", lambda name: None if name == "gitleaks" else REAL_WHICH(name))
-    code, out = run(repo, denylist, capsys)
-    assert code == 1
-    assert step(out, "leak-scan") == "FAIL leak-scan: gitleaks git .: tool not on PATH: gitleaks"
+    assert fails(repo, denylist, capsys, "leak-scan") == "FAIL leak-scan: could not run: gitleaks not on PATH"
 
+
+# vision-lock
 
 def test_unsigned_vision_edit_fails(repo, denylist, capsys):
-    edited = VISION + "More.\n"
+    edited = VISION + f"{TERM} {ADDR}\n"
     commit(repo, {"VISION.md": edited, "locks/VISION.md.sha256": lock_text(edited)}, "unsigned edit")
     publish(repo)
-    code, out = run(repo, denylist, capsys)
-    assert code == 1
-    assert "carries no SSH signature" in step(out, "vision-lock")
+    assert "is not as written by a commit signed" in fails(repo, denylist, capsys, "vision-lock")
 
 
 def test_signed_lock_with_wrong_hash_fails(repo, denylist, key, capsys):
     commit(repo, {"VISION.md": VISION + "More.\n"}, "signed edit, lock not updated", key)
     publish(repo)
-    code, out = run(repo, denylist, capsys)
-    assert code == 1
-    assert "hashes to" in step(out, "vision-lock") and step(out, "vision-lock").startswith("FAIL ")
+    assert fails(repo, denylist, capsys, "vision-lock") == "FAIL vision-lock: lock hash does not match VISION.md"
+
+
+def test_lock_field_is_never_printed(repo, denylist, key, capsys):
+    commit(repo, {"locks/VISION.md.sha256": f"{TERM}-{ADDR} *VISION.md\n"}, "signed bad lock", key)
+    publish(repo)
+    assert fails(repo, denylist, capsys, "vision-lock") == "FAIL vision-lock: lock hash does not match VISION.md"
+
+
+def test_crlf_vision_against_the_lf_hash_fails(repo, denylist, key, capsys):
+    crlf = VISION.replace("\n", "\r\n")
+    (repo / "VISION.md").write_bytes(crlf.encode())
+    (repo / "locks/VISION.md.sha256").write_text(lock_text(VISION), newline="\n")
+    git(repo, "add", "-A")
+    git(repo, "-c", f"user.signingkey={key.as_posix()}", "commit", "-S", "-q", "-m", "crlf vision")
+    publish(repo)
+    stored = subprocess.run(["git", "-C", str(repo), "cat-file", "blob", "HEAD:VISION.md"], capture_output=True)
+    assert b"\r\n" in stored.stdout
+    assert fails(repo, denylist, capsys, "vision-lock") == "FAIL vision-lock: lock hash does not match VISION.md"
 
 
 def test_vision_missing_on_origin_main_fails(tmp_path, key, denylist, capsys):
-    r = tmp_path / "bare"
-    r.mkdir()
-    git(r, "init", "-q", "-b", "main")
-    for k, v in {"user.email": NOREPLY, "user.name": "Test", "gpg.format": "ssh"}.items():
-        git(r, "config", k, v)
-    commit(r, {".github/allowed_signers": signers_line(key)}, "bootstrap", key)
+    r = init(tmp_path / "bare", key)
     publish(r)
-    assert "VISION.md not found at origin/main" in step(run(r, denylist, capsys)[1], "vision-lock")
+    assert fails(r, denylist, capsys, "vision-lock") == "FAIL vision-lock: VISION.md missing on origin/main"
 
 
-def test_failing_registered_check_fails(repo, denylist, capsys, monkeypatch):
-    monkeypatch.setattr(registry, "CHECKS", [Check("bad", (sys.executable, "-c", "raise SystemExit(3)"))])
-    code, out = run(repo, denylist, capsys)
-    assert code == 1
-    assert step(out, "checks") == "FAIL checks: required checks not PASS: bad"
+def test_lock_missing_on_origin_main_fails(tmp_path, key, denylist, capsys):
+    r = init(tmp_path / "nolock", key)
+    commit(r, {"VISION.md": VISION}, "vision without a lock", key)
+    publish(r)
+    assert fails(r, denylist, capsys, "vision-lock") == ("FAIL vision-lock: locks/VISION.md.sha256 "
+                                                         "missing on origin/main")
 
 
-def test_not_a_repository_fails_without_traceback(tmp_path, denylist, capsys, monkeypatch):
+def test_missing_ssh_keygen_fails(repo, denylist, capsys, monkeypatch):
+    monkeypatch.setattr(verify.shutil, "which", lambda name: None if name == "ssh-keygen" else REAL_WHICH(name))
+    assert fails(repo, denylist, capsys, "vision-lock") == "FAIL vision-lock: could not run: ssh-keygen not on PATH"
+
+
+def test_signature_check_that_cannot_run_prints_only_its_class(repo, denylist, capsys, monkeypatch):
+    def broken(*args):
+        raise verify.CouldNotRun(f"{TERM} {ADDR}")
+    monkeypatch.setattr(release, "signed_on_ref", broken)
+    assert fails(repo, denylist, capsys, "vision-lock") == "FAIL vision-lock: could not run: CouldNotRun in vision-lock"
+
+
+# checks
+
+def test_failing_registered_check_fails_without_its_output(repo, denylist, capsys, monkeypatch):
+    noisy = Check("bad", (sys.executable, "-c", f"print('{TERM} {ADDR}'); raise SystemExit(3)"))
+    monkeypatch.setattr(registry, "CHECKS", [noisy])
+    assert fails(repo, denylist, capsys, "checks") == "FAIL checks: required checks not PASS: bad"
+
+
+# any step
+
+def test_exception_prints_only_its_class_and_step(repo, denylist, capsys, monkeypatch):
+    def broken(repo):
+        raise RuntimeError(f"{TERM} {ADDR}")
+    monkeypatch.setattr(release, "identities", broken)
+    assert fails(repo, denylist, capsys, "identities") == "FAIL identities: could not run: RuntimeError in identities"
+
+
+def test_not_a_repository_fails_every_step_without_traceback(tmp_path, denylist, capsys, monkeypatch):
     monkeypatch.setattr(registry, "CHECKS", [Check("ghost", ("tlb-no-such-binary-xyz",))])
-    plain = tmp_path / "plain"
+    plain = tmp_path / TERM
     plain.mkdir()
     code, out = run(plain, denylist, capsys)
     assert code == 1
-    fails = [line.split(":", 1)[0] for line in out.splitlines() if line.startswith("FAIL ")]
-    # gitleaks exits 0 outside a repository, so leak-scan alone passes; the head step still fails the gate.
-    assert fails == ["FAIL head", "FAIL deny-list", "FAIL identities", "FAIL vision-lock", "FAIL checks"]
-    assert "could not run: HEAD does not resolve to a commit" in out
-    assert "Traceback" not in out
+    assert [line.split(":", 1)[0] for line in out.splitlines() if line.startswith("FAIL ")] == [
+        "FAIL head", "FAIL deny-list", "FAIL identities", "FAIL leak-scan", "FAIL vision-lock", "FAIL checks"]
+    clean(out)
