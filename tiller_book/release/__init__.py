@@ -127,8 +127,8 @@ def _tree_entries(oid, body):
     return entries
 
 
-def _full_paths(trees):
-    """Every full path under every root tree (a tree no other reachable tree contains)."""
+def _full_paths(trees, commit_roots=()):
+    """Every full path under every root: each commit's tree, and each tree no other reachable tree contains."""
     children = {c for entries in trees.values() for mode, _, c in entries if mode == b"40000"}
     below = {}
 
@@ -142,7 +142,7 @@ def _full_paths(trees):
         return below[oid]
 
     out = set()
-    for root in trees.keys() - children:
+    for root in (trees.keys() - children) | set(commit_roots):
         out |= paths(root)
     return sorted(out)
 
@@ -155,7 +155,9 @@ def _reachable_text(repo):
     """
     objects = _reachable(repo)
     parts = _git_bytes(repo, "for-each-ref", "--format=%(refname)").splitlines()
-    parts.extend(_full_paths({oid: _tree_entries(oid, body) for oid, kind, body in objects if kind == b"tree"}))
+    commit_roots = [body.split(b"\n", 1)[0][5:] for _, kind, body in objects if kind == b"commit"]
+    parts.extend(_full_paths({oid: _tree_entries(oid, body) for oid, kind, body in objects if kind == b"tree"},
+                             commit_roots))
     for oid, kind, body in objects:
         # Signatures are skipped to avoid chance hits in base64; limit: a crafted fake signature can hide text.
         if kind == b"commit":
@@ -214,7 +216,7 @@ def leak_scan(repo):
         for oid, kind in zip(fields[0::2], fields[1::2]):
             if kind not in (b"commit", b"tag"):
                 loose[oid] = _raw(repo, oid)
-    code_git, _ = _bytes(["gitleaks", "git", "."], cwd=repo, timeout=300)
+    code_git, _ = _bytes(["gitleaks", "git", ".", "--log-opts=--all --full-history -m"], cwd=repo, timeout=300)
     with tempfile.TemporaryDirectory() as d:
         for oid, body in loose.items():
             (Path(d) / oid.decode("ascii")).write_bytes(body)

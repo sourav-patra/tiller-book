@@ -274,6 +274,21 @@ def test_pattern_spanning_a_historical_directory_and_file_name_is_counted(repo, 
         "FAIL deny-list: 0 matching lines in 0 files at HEAD, 1 matching lines across ")
 
 
+def test_root_anchored_path_of_a_root_tree_reused_under_a_directory_is_counted(repo, tmp_path, capsys):
+    deny = tmp_path / "anchored.txt"
+    deny.write_text("^plumbar/vexmoor\n", newline="\n")
+    commit(repo, {"plumbar/vexmoor.txt": "clean\n"}, "add")
+    old_root = git(repo, "rev-parse", "HEAD^{tree}").strip()
+    git(repo, "rm", "-q", "-r", "plumbar")
+    git(repo, "read-tree", "--prefix=archive/", old_root)
+    git(repo, "commit", "-q", "-m", "archive the old root")
+    git(repo, "checkout", "-q", "--", ".")
+    publish(repo)
+    assert git(repo, "ls-tree", "-r", "--name-only", "HEAD").count("archive/plumbar/vexmoor.txt") == 1
+    assert fails(repo, deny, capsys, "deny-list").startswith(
+        "FAIL deny-list: 0 matching lines in 0 files at HEAD, 1 matching lines across ")
+
+
 def test_grafts_file_fails_the_head_step(repo, denylist, capsys):
     commit(repo, {"notes.txt": f"{TERM}\n"}, "add")
     commit(repo, {"notes.txt": "gone\n"}, "remove")
@@ -406,6 +421,25 @@ def test_leaked_secret_in_a_commit_fails_leak_scan(repo, denylist, capsys):
     reason = fails(repo, denylist, capsys, "leak-scan")
     assert reason.startswith("FAIL leak-scan: gitleaks git exit 1, gitleaks dir exit 0")
     assert secret not in reason
+
+
+@needs_gitleaks
+def test_secret_introduced_only_by_a_merge_then_removed_fails_leak_scan(repo, denylist, capsys):
+    secret = token()
+    git(repo, "switch", "-q", "-c", "side")
+    commit(repo, {"side.txt": "side\n"}, "side")
+    git(repo, "switch", "-q", "main")
+    commit(repo, {"main.txt": "main\n"}, "main")
+    git(repo, "merge", "-q", "--no-commit", "--no-ff", "side")
+    (repo / "config.txt").write_text(f"token = {secret}\n", newline="\n")
+    git(repo, "add", "config.txt")
+    git(repo, "commit", "-q", "-m", "merge side")
+    git(repo, "rm", "-q", "config.txt")
+    git(repo, "commit", "-q", "-m", "remove")
+    git(repo, "branch", "-q", "-D", "side")
+    publish(repo)
+    reason = fails(repo, denylist, capsys, "leak-scan")
+    assert reason.startswith("FAIL leak-scan: gitleaks git exit 1") and secret not in reason
 
 
 @needs_gitleaks
