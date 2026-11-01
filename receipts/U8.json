@@ -6,8 +6,8 @@
     "model": "claude-opus-5-5"
   },
   "commits": {
-    "start": "4b5e21b5f254803956ccfd6dc58f4eaca4c83d02",
-    "head": "a22faba894963725b1de90d171f664bec09f53a9"
+    "start": "187444893d9265e55a79a24e6f60dd5225165d2b",
+    "head": "f1fe4b1ebad0e9d7755a152cd3d2804bdad27e82"
   },
   "model_calls": [],
   "checks": [
@@ -47,46 +47,68 @@
       "reason": "exit 0"
     },
     {
-      "name": "independent review round one (codex, gpt-6.1-sol, local, not CI-verified)",
-      "command": "codex exec on commit 940835d",
+      "name": "own-repository steps in a throwaway repository",
+      "command": "the README steps with a throwaway key and bare origin, using a clean install from main",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "plan verify PASS, all four checks PASS after the receipt; a commit outside allowed_paths failed path-scope with the path named"
+    },
+    {
+      "name": "figures rendered and inspected at full size",
+      "command": "a headless browser screenshot of each SVG, inspected by the builder",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "no clipping or overlap after two layout fixes"
+    },
+    {
+      "name": "uncoached reader check of both figures (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec with only the two images",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "the reader described the flow and limits correctly; two wordings it could misread were changed in f1fe4b1; the reader did not see the final wording"
+    },
+    {
+      "name": "independent review round four (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit 8ef6124",
       "status": "FAIL",
       "exit_code": 0,
-      "reason": "six wording findings: universal enforcement claims, floor-check exceptions, receipt invalidation, writer options, release prerequisites, failure reasons; closed in c03f2ad"
+      "reason": "two findings: editing the branch plan does not always fail; path scope reads the net diff; closed in f1fe4b1"
     },
     {
-      "name": "independent review round two (codex, gpt-6.1-sol, local, not CI-verified)",
-      "command": "codex exec on commit c03f2ad",
+      "name": "independent review round five (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit f1fe4b1",
       "status": "PASS",
       "exit_code": 0,
-      "reason": "all round-one findings closed; no findings"
-    },
-    {
-      "name": "independent review round three (codex, gpt-6.1-sol, local, not CI-verified)",
-      "command": "codex exec on commit a22faba",
-      "status": "PASS",
-      "exit_code": 0,
-      "reason": "README release gate text matches the merged U9 code; no findings"
+      "reason": "both findings closed; no findings"
     }
   ],
   "refusals": [],
   "evidence": [
     {
-      "location": "owner notes store, U8 review, rounds one to three",
-      "what": "review verdicts and findings"
+      "location": "owner notes store, U8 review, rounds four and five, and the reader check",
+      "what": "verdicts, findings and the reader's answers"
+    },
+    {
+      "location": "receipts/U8.json at d004208",
+      "what": "receipt for the first README, review rounds one to three"
     }
   ],
   "not_measured": [
     {
-      "claim": "model tokens and cost of the Claude Code session that built U8",
+      "claim": "model tokens and cost of the Claude Code session that made this change",
       "command": "/cost in that Claude Code session"
     },
     {
-      "claim": "review rounds one to three used 92,106, 67,654 and 86,280 tokens in total by the codex log; the input and output split and the cost were not recorded",
+      "claim": "rounds four and five used 102,535 and 38,914 tokens and the reader check 8,527, in total by the codex log; a first start of round four was stopped and not counted; the split and the cost were not recorded",
       "command": "rerun the review with codex exec --json and read the usage fields"
     },
     {
-      "claim": "an independent run of the full test suite; the reviewer read source and tests without running them",
-      "command": "the CI test job planned for 0.1 on the head commit"
+      "claim": "a second reader who did not write the README answering the five entry-page questions; only the figures had a reader check",
+      "command": "give the README to a reader and record the answers"
+    },
+    {
+      "claim": "the labels and figures as GitHub renders them; they were inspected as local renders",
+      "command": "open the README on GitHub after the merge"
     },
     {
       "claim": "receipt check, skipped by the writer",
