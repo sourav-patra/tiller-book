@@ -48,4 +48,4 @@ A checker is a script with no model in it. It prints one PASS or FAIL line, exit
 
 ### 3. Receipt viewer
 
-Write a command that reads `receipts/<id>.json` and prints a short summary a person can read in a minute: the unit, the runner, the commits, each check with its status, each model call with its tokens and cost, and every `not_measured` claim with its command. It validates the receipt against `schemas/receipt.schema.json` first, exits 1 on an invalid receipt, and calls no model.
+Write a command that reads `receipts/<id>.json` and prints a short summary a person can read in a minute: the unit, the runner, the commits, each check with its status, each model call with its tokens and cost, and every `not_measured` claim with its command. It validates the receipt against `tiller_book/schemas/receipt.schema.json` first, exits 1 on an invalid receipt, and calls no model.
