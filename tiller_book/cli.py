@@ -8,6 +8,7 @@ from pathlib import Path
 from tiller_book.checks import aggregate, line, registry, run_check
 from tiller_book.plan.verify import CouldNotRun, verify_plan
 from tiller_book.release import gate
+from tiller_book.receipt import write as receipt
 
 
 def main(argv=None):
@@ -29,12 +30,27 @@ def main(argv=None):
     gate_cmd.add_argument("--denylist", required=True,
                           help="file of grep patterns, one per line, kept outside the repository")
     gate_cmd.add_argument("--repo", default=".", help="repository path (default the current directory)")
+    receipts = sub.add_parser("receipt", help="receipts").add_subparsers(dest="receipt_command", required=True)
+    rw = receipts.add_parser("write", help="write receipts/<unit>.json for HEAD; commit it alone as the last commit")
+    rw.add_argument("unit")
+    rw.add_argument("--repo", default=".", help="repository path (default the current directory)")
+    rw.add_argument("--agent", default="unknown", help="the agent that did the work (default unknown)")
+    rw.add_argument("--model", help="the agent's model")
+    rw.add_argument("--model-call", action="append", default=[], metavar="MODEL,IN,OUT,COST",
+                    help="one model call, as reported by the caller; a COST of - means not measured; repeatable")
+    rw.add_argument("--check-file", metavar="FILE", help="a JSON list of extra receipt checks[] items")
+    rw.add_argument("--evidence", action="append", default=[], metavar="LOCATION=WHAT", help="repeatable")
+    rw.add_argument("--not-measured", action="append", default=[], metavar="CLAIM=COMMAND", help="repeatable")
+    rw.add_argument("--skip-check", action="append", choices=("receipt", "tests"), metavar="NAME",
+                    help="a registered check not to run: receipt or tests; repeatable (default receipt)")
     args = parser.parse_args(argv)
 
     if args.command == "release":
         return release_gate(Path(args.repo), args.denylist)
     if args.command == "check":
         return check_run(Path(args.repo), args.json)
+    if args.command == "receipt":
+        return receipt_write(args)
     try:
         problems = verify_plan(Path(args.repo), args.id, args.ref, args.signers_ref)
     except (CouldNotRun, OSError) as e:
@@ -70,6 +86,20 @@ def release_gate(repo, denylist):
     bad = [name for name, ok, _ in results if not ok]
     print(f"FAIL: release steps not PASS: {', '.join(bad)}" if bad else f"PASS: all {len(results)} release steps passed")
     return 1 if bad else 0
+
+
+def receipt_write(args):
+    if hasattr(sys.stdout, "reconfigure"):  # check reasons may hold characters the console code page cannot encode
+        sys.stdout.reconfigure(errors="backslashreplace")
+    try:
+        code, message = receipt.write(
+            Path(args.repo), args.unit, agent=args.agent, model=args.model, model_calls=args.model_call,
+            check_file=args.check_file, evidence=args.evidence, not_measured=args.not_measured,
+            skip=sorted(set(args.skip_check or []) | {"receipt"}))
+    except Exception as e:  # noqa: BLE001 - fail closed on anything, never a traceback
+        code, message = 1, f"FAIL: could not run: {e}"
+    print(" ".join(str(message).splitlines()))
+    return code
 
 
 if __name__ == "__main__":
