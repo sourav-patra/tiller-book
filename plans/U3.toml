@@ -1,0 +1,5 @@
+id = "U3"
+title = "Floor checkers for path scope and receipt (SCOPE items 4 and 5)"
+allowed_paths = ["tiller_book/checks/floor/","tiller_book/checks/registry.py","tests/","receipts/U3.json"]
+min_held_out_cases = 20
+model_calls = []
