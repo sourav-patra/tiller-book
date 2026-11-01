@@ -174,6 +174,14 @@ def test_skip_tests_is_not_run_and_is_listed_as_not_measured(work, capsys):
                                     for n in ("receipt", "tests")]
 
 
+def test_recorded_commands_name_python_not_the_local_interpreter_path(work, capsys):
+    code_commit(work)
+    assert write(work, capsys)[0] == 0
+    commands = [c["command"] for c in written(work)["checks"]]
+    assert commands and all(c.startswith("python -c ") for c in commands)
+    assert not any(sys.executable in c or str(Path(sys.executable).parent) in c for c in commands)
+
+
 def test_skip_tests_alone_still_skips_the_receipt_check(work, capsys):
     code_commit(work)
     assert write(work, capsys, "--skip-check", "tests")[0] == 0

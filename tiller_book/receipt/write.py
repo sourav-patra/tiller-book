@@ -8,6 +8,8 @@ import json
 import math
 import os
 import re
+import shlex
+import sys
 import tempfile
 from pathlib import Path
 
@@ -62,6 +64,14 @@ def read_check_file(path):
     return items
 
 
+def portable(result):
+    """Name the interpreter `python` in a recorded command, so a receipt never carries a local path."""
+    command = result["command"]
+    for form in (shlex.quote(sys.executable), sys.executable):
+        command = command.replace(form, "python")
+    return {**result, "command": command}
+
+
 def dirty(repo, unit):
     """Paths git status reports, other than an untracked receipts/<unit>.json."""
     entries = git(repo, "status", "--porcelain", "-z", "--untracked-files=all").split("\0")
@@ -86,7 +96,7 @@ def build(repo, unit, agent="unknown", model=None, model_calls=(), check_file=No
         "runner": runner,
         "commits": {"start": git(repo, "merge-base", BASE, "HEAD").strip(), "head": git(repo, "rev-parse", "HEAD").strip()},
         "model_calls": calls,
-        "checks": [run_check(c, repo) for c in registry.CHECKS if c.name not in skip] + extra,
+        "checks": [portable(run_check(c, repo)) for c in registry.CHECKS if c.name not in skip] + extra,
         "refusals": [],
         "evidence": [dict(zip(("location", "what"), split_pair(e, "--evidence", "LOCATION", "WHAT"))) for e in evidence],
         "not_measured": gaps + [{"claim": f"{name} check, skipped by the writer", "command": "tlb check run"}
