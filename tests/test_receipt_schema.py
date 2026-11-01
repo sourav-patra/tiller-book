@@ -8,7 +8,7 @@ import pytest
 from jsonschema import Draft202012Validator
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA = json.loads((ROOT / "schemas/receipt.schema.json").read_text(encoding="utf-8"))
+SCHEMA = json.loads((ROOT / "tiller_book/schemas/receipt.schema.json").read_text(encoding="utf-8"))
 EXAMPLES = sorted((ROOT / "tests/fixtures/receipts").glob("*.json"))
 VALIDATOR = Draft202012Validator(SCHEMA)
 
@@ -73,3 +73,14 @@ def test_broken_receipts_fail(name, change):
 def test_u1_receipt_exists():
     # U1 acceptance check 4; later units add their own receipt to receipts/.
     assert (ROOT / "receipts/U1.json").is_file()
+
+
+def test_schemas_ship_inside_the_package():
+    import tomllib
+
+    from tiller_book.plan.verify import SCHEMAS
+    package = ROOT / "tiller_book"
+    assert SCHEMAS == package / "schemas"
+    globs = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))["tool"]["setuptools"]["package-data"]["tiller_book"]
+    shipped = {p.name for g in globs for p in package.glob(g)}
+    assert {"plan.schema.json", "receipt.schema.json"} <= shipped
