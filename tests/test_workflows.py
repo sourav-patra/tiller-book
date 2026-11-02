@@ -66,6 +66,16 @@ def test_jobs_that_read_a_secret_only_install_from_main():
             assert "working-directory: pr" not in job, name
 
 
+def test_the_gate_runs_on_main_only_and_each_checkout_names_an_immutable_commit():
+    text = (WORKFLOWS / "gate.yml").read_text(encoding="utf-8")
+    assert "    branches: [main]\n" in text
+    refs = re.findall(r"^\s+ref: (.+)$", text, re.M)
+    assert refs.count("${{ github.workflow_sha }}") == 2
+    assert refs.count("${{ github.event.pull_request.head.sha }}") == 3 and len(refs) == 5
+    for name, job in jobs(text).items():
+        assert "= \"$HEAD_SHA\"" in job, name  # each job confirms what it checked out
+
+
 def test_every_gate_job_can_fail_closed():
     # a job skipped by an `if` counts as success for a required check
     for name, job in jobs((WORKFLOWS / "gate.yml").read_text(encoding="utf-8")).items():
@@ -83,10 +93,12 @@ def test_isolated_python_ignores_a_tiller_book_folder_in_the_pull_request(make):
 
     def run(*flags):
         return subprocess.run([sys.executable, *flags, "-m", "tiller_book.checks.floor.path_scope"],
-                              cwd=work, capture_output=True, text=True).stdout
+                              cwd=work, capture_output=True, text=True)
 
-    assert "pull request code ran" in run()  # the danger is real without -I
-    assert "pull request code ran" not in run("-I")
+    assert "pull request code ran" in run().stdout  # the danger is real without -I
+    isolated = run("-I")
+    assert "pull request code ran" not in isolated.stdout
+    assert isolated.returncode == 0 and isolated.stdout.startswith("PASS: "), isolated.stdout + isolated.stderr  # the real one ran
 
 
 def scan(repo, denylist, capsys):
