@@ -157,6 +157,8 @@ The checks read the limit from `origin/main` and the work from the branch, so a 
 - A diff fed to a model reviewer can steer its verdict, so review is never the only gate.
 - Token counts and costs in a receipt are reported by the caller, because `tlb receipt write` cannot see a model session.
 - With the default checkout, a GitHub `pull_request` event checks out a merge ref, so CI must check out the pull request's head commit for the receipt check.
+- `tlb receipt write` always writes an empty `refusals` list and has no option to add one, so a written receipt records no refusals unless someone edits it by hand.
+- A plan may list `model_calls`, and nothing enforces that list yet.
 - There is no watchdog or escalation for a stalled or failed run; the receipt writer records failing checks in the receipt.
 - The release gate skips signature blocks in commit headers and tag trailers, because their random text matches short deny-list terms by chance. A commit crafted to hide text inside a fake signature header would pass the deny-list step.
 
@@ -172,11 +174,11 @@ The checks read the limit from `origin/main` and the work from the branch, so a 
   - `--agent` and `--model`, the runner;
   - `--skip-check NAME`, repeatable, `tests` or `receipt`; `receipt` is always skipped, and each skipped check is listed in `not_measured`;
   - `--repo PATH`, the repository, default the current directory.
-- `tlb release gate --denylist PATH [--repo PATH]`: requires `HEAD` to equal `origin/main` in a full clone without grafts; it does not switch to it. It then checks the deny-list against the HEAD tree and every object reachable from every ref, author, committer and tagger addresses, gitleaks on the history and on every reachable blob, commit and tag, the `VISION.md` lock, and the registered checks. It prints one PASS or FAIL line per step and a final verdict, and exits 0 only if all steps pass. The deny-list file stays outside the repository. Output is counts and fixed reasons only, never matched text, addresses or tool output.
+- `tlb release gate --denylist PATH [--repo PATH]`: requires `HEAD` to equal `origin/main` in a full clone without grafts; it does not switch to it. It then checks the deny-list against the HEAD tree and every object reachable from every ref, author, committer and tagger addresses, gitleaks on the history and on every reachable blob, commit and tag, the `VISION.md` lock, and the registered checks. It prints one PASS or FAIL line per step and a final verdict, and exits 0 only if all steps pass. The deny-list file stays outside the repository. Output is counts, short hashes and fixed reasons only, never matched text, addresses or tool output.
 
 ## Why not X
 
-These projects work on nearby problems. Each row describes the project in the terms of its own README, checked on 1 Nov 2026.
+These projects work on nearby problems. Each row describes the project in the terms of its own README, checked on 1 or 2 Nov 2026.
 
 | Project | What it is |
 |---|---|
@@ -191,6 +193,7 @@ These projects work on nearby problems. Each row describes the project in the te
 | [OpenLIT](https://github.com/openlit/openlit) | An agent engineering platform on OpenTelemetry with tracing, evaluations, guardrails, and cost and GPU monitoring |
 | [Inspect AI](https://github.com/UKGovernmentBEIS/inspect_ai) | A framework for large language model evaluations from the UK AI Security Institute, with over 200 pre-built evaluations |
 | [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) | A plugin-based agent harness with a web UI, in developer preview |
+| [Elephant-Goldfish Model](https://github.com/google/elephant-goldfish-model) | A plugin where a long-context agent drafts a design specification with a person and fresh zero-context subagents review it, ending at an approved specification |
 
 ## Licence
 
