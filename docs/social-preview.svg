@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 640" width="1280" height="640" role="img" aria-labelledby="title">
+  <title id="title">tiller-book: check an agent's work against a plan a person signed, and keep a receipt for every change</title>
+  <style>
+    text { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; fill: #1f2328; }
+    .name { font-size: 88px; font-weight: 700; }
+    .promise { font-size: 38px; fill: #424a53; }
+    .t { font-family: ui-monospace, Consolas, Menlo, monospace; font-size: 30px; }
+    .pass { fill: #116329; font-weight: 700; }
+    .fail { fill: #a40e26; font-weight: 700; }
+    .panel { fill: #f6f8fa; stroke: #1f2328; stroke-width: 2; }
+  </style>
+  <rect width="1280" height="640" fill="#ffffff"/>
+  <text class="name" x="80" y="150">tiller-book</text>
+  <text class="promise" x="80" y="222">Check an agent's work against a plan a person signed,</text>
+  <text class="promise" x="80" y="272">and keep a receipt for every change.</text>
+  <rect class="panel" x="80" y="326" width="1120" height="234" rx="10"/>
+  <text class="t" x="116" y="384" fill="#424a53">$ tlb check run</text>
+  <text class="t" x="116" y="434"><tspan class="pass">PASS</tspan> tests</text>
+  <text class="t" x="116" y="480"><tspan class="fail">FAIL</tspan> path-scope: outside allowed_paths: config.txt</text>
+  <text class="t" x="116" y="526"><tspan class="fail">FAIL</tspan> receipt: no receipt</text>
+</svg>
