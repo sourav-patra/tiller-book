@@ -6,8 +6,8 @@
     "model": "claude-opus-5-5"
   },
   "commits": {
-    "start": "072bcbf70d683a2684a1e0cbda920dba74f5341b",
-    "head": "c703cc101cc6ecbdf55ff337e1b8d6bd56dd231f"
+    "start": "af61a6b1ea59574f3bc54decaf8d2174c71c963c",
+    "head": "415001db1677ce32afeab5714533410836c01ffd"
   },
   "model_calls": [],
   "checks": [
@@ -47,22 +47,71 @@
       "reason": "exit 0"
     },
     {
-      "name": "independent review round six (codex, gpt-6.1-sol, local, not CI-verified)",
-      "command": "codex exec on commit c703cc1",
+      "name": "entry page lint",
+      "command": "readme_lint.py README.md",
       "status": "PASS",
       "exit_code": 0,
-      "reason": "no defects in the diff or the claims it changes"
+      "reason": "0 fail, 1 warn: the hero figure is static, accepted"
+    },
+    {
+      "name": "quick start run literally from a fresh clone",
+      "command": "the README quick start commands",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "all 4 checks passed in 347 s; an earlier run with a non-editable install reported 1 test error, see not_measured"
+    },
+    {
+      "name": "figures rendered and inspected at full size",
+      "command": "a headless browser screenshot of each SVG, inspected by the builder",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "no clipping or overlap; demo.svg lines match the captured output"
+    },
+    {
+      "name": "uncoached reader check, round one (codex, gpt-6.1-sol, and a fresh Claude agent, sonnet; local, not CI-verified)",
+      "command": "two readers given only the README and rendered figures",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "both answered the rule's questions; the audience was implied, and unit and U1 were undefined; closed in 528bf99"
+    },
+    {
+      "name": "uncoached reader check, round two (a fresh Claude agent, sonnet; local, not CI-verified)",
+      "command": "one reader given only the README and rendered figures",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "named the audience and answered every question; found a control character on line 39, closed in 415001d"
+    },
+    {
+      "name": "independent review round one (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit e2c71ea",
+      "status": "FAIL",
+      "exit_code": 0,
+      "reason": "findings closed in 528bf99: local origin/main limit, path-scope wording, evidence line, missing virtual environment, placeholders, jargon; removing public comparison links declined"
+    },
+    {
+      "name": "independent review round two (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit 528bf99",
+      "status": "FAIL",
+      "exit_code": 0,
+      "reason": "two findings: plan-only exemption, control character; closed in 415001d"
+    },
+    {
+      "name": "independent review round three (codex, gpt-6.1-sol, local, not CI-verified)",
+      "command": "codex exec on commit 415001d",
+      "status": "PASS",
+      "exit_code": 0,
+      "reason": "both findings closed; scope was that diff only"
     }
   ],
   "refusals": [],
   "evidence": [
     {
-      "location": "owner notes store, U8 review round six",
-      "what": "review verdict"
+      "location": "owner notes store, entry page review rounds, reader answers, lint and quick start output",
+      "what": "verdicts, findings and outputs"
     },
     {
-      "location": "receipts/U8.json at 69fd95a",
-      "what": "receipt for the README labels and figures, rounds four and five"
+      "location": "receipts/U8.json at f5a0456",
+      "what": "receipt for the documentation corrections, round six"
     }
   ],
   "not_measured": [
@@ -71,12 +120,20 @@
       "command": "/cost in that Claude Code session"
     },
     {
-      "claim": "review round six used 57,992 tokens in total by the codex log; the input and output split and the cost were not recorded",
+      "claim": "review rounds one to three used 80,830, 47,026 and 19,150 tokens in total by the codex log; the split and the cost were not recorded",
       "command": "rerun the review with codex exec --json and read the usage fields"
     },
     {
-      "claim": "the plan schema text still says an unlisted model call stops the unit, and no code enforces it; this unit only lists the limit in the README",
-      "command": "a signed plan that changes tiller_book/schemas/plan.schema.json"
+      "claim": "the cause of one test error in five full runs on fresh clones; tlb check run printed only the count, and the other four passed, including two run at once",
+      "command": "rerun the suite until it recurs, capturing pytest output"
+    },
+    {
+      "claim": "GitHub Pages rendering and the live page; Pages is not enabled until after this merge",
+      "command": "open the page after the owner enables Pages"
+    },
+    {
+      "claim": "a human reader; both reader checks used agents",
+      "command": "give the README to a person and record the answers"
     },
     {
       "claim": "receipt check, skipped by the writer",

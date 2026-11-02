@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 432" width="900" height="432" role="img" aria-labelledby="title desc">
+  <title id="title">tlb check run on an agent's branch, failing and then passing</title>
+  <desc id="desc">Real tlb output in two panels. First, a commit also changed config.txt, which the signed plan does not allow. Tests and the leak scan pass, path scope fails and names config.txt, the receipt check fails because no receipt exists yet, and the run exits 1. After config.txt is removed and the receipt is committed, all four checks pass and the run exits 0.</desc>
+  <style>
+    text { font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif; font-size: 14px; fill: #1f2328; }
+    .head { font-size: 14px; font-weight: 600; }
+    .t { font-family: ui-monospace, Consolas, Menlo, monospace; font-size: 13px; }
+    .cmd { fill: #424a53; }
+    .pass { fill: #116329; font-weight: 700; }
+    .fail { fill: #a40e26; font-weight: 700; }
+    .panel { fill: #f6f8fa; stroke: #1f2328; stroke-width: 1.5; }
+    .passpanel { fill: #f6f8fa; stroke: #116329; stroke-width: 1.5; }
+    .failpanel { fill: #f6f8fa; stroke: #a40e26; stroke-width: 1.5; stroke-dasharray: 6 4; }
+    .line { fill: none; stroke: #1f2328; stroke-width: 1.5; marker-end: url(#arrow); }
+    .edge { font-size: 13px; fill: #424a53; }
+  </style>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#1f2328"/></marker>
+  </defs>
+
+  <rect width="900" height="432" fill="#ffffff"/>
+
+  <text class="head" x="24" y="24">The agent's commit also changed a file the signed plan does not allow</text>
+  <rect class="failpanel" x="20" y="34" width="860" height="166" rx="6"/>
+  <text class="t cmd" x="36" y="58">$ tlb check run</text>
+  <text class="t" x="36" y="80"><tspan class="pass">PASS</tspan> tests: exit 0</text>
+  <text class="t" x="36" y="100"><tspan class="pass">PASS</tspan> leak-scan: exit 0</text>
+  <text class="t" x="36" y="120"><tspan class="fail">FAIL</tspan> path-scope: exit 1: FAIL: outside allowed_paths of plans/demo-1.toml at origin/main: config.txt</text>
+  <text class="t" x="36" y="140"><tspan class="fail">FAIL</tspan> receipt: exit 1: FAIL: no receipt: head commit c65a098f2295 does not change receipts/demo-1.json</text>
+  <text class="t" x="36" y="160"><tspan class="fail">FAIL</tspan>: required checks not PASS: path-scope, receipt</text>
+  <text class="t cmd" x="36" y="184">exit code 1</text>
+
+  <path class="line" d="M60 200 V254"/>
+  <text class="edge" x="72" y="232">Remove config.txt, write the receipt and commit it alone</text>
+
+  <text class="head" x="24" y="272">The same branch after the fix</text>
+  <rect class="passpanel" x="20" y="282" width="860" height="134" rx="6"/>
+  <text class="t cmd" x="36" y="306">$ tlb check run</text>
+  <text class="t" x="36" y="326"><tspan class="pass">PASS</tspan> tests: exit 0</text>
+  <text class="t" x="36" y="344"><tspan class="pass">PASS</tspan> leak-scan: exit 0</text>
+  <text class="t" x="36" y="362"><tspan class="pass">PASS</tspan> path-scope: exit 0</text>
+  <text class="t" x="36" y="380"><tspan class="pass">PASS</tspan> receipt: exit 0</text>
+  <text class="t" x="36" y="400"><tspan class="pass">PASS</tspan>: all 4 required checks passed</text>
+  <text class="t cmd" x="790" y="400">exit code 0</text>
+</svg>
