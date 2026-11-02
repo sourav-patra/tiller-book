@@ -12,7 +12,7 @@ Status: 0.1.0-alpha.
 | Fail-closed runner | Enforced now | Runs the registered checks (tests, gitleaks leak scan, path scope, receipt); a failure, timeout, missing tool or command that cannot start counts as a failure, and it exits 0 only if every required check passed | `tlb check run` | `tiller_book/checks/__init__.py`, `tiller_book/checks/registry.py` |
 | Release gate | Enforced now | Deny-list on the HEAD tree and every reachable object, noreply author, committer and tagger addresses, gitleaks, the `VISION.md` lock, and the registered checks, with `HEAD` equal to `origin/main`; a missing tool or deny-list file is a failure | `tlb release gate --denylist PATH` | `tiller_book/release/` |
 | Review identity from a CI run | Not yet, planned for 0.1 | Today nothing checks who reviewed a change; a review listed in a receipt is text, and text is not identity | | |
-| CI workflows read from main | Not yet, planned for 0.1 | Today the repository has no CI workflow, so no check is a required status check on main; each check counts only when someone runs it | | |
+| CI workflows read from main | Not yet, planned for 0.1 | Today the only workflow is docs-lint, which runs the README lint. No check is a required status check on main yet, so each `tlb` check counts only when someone runs it | | |
 | Lesson filing | Not yet, planned for 0.1 | Today misses are not filed as lessons and no measurement runs | | |
 
 [VISION.md](https://github.com/sourav-patra/tiller-book/blob/main/VISION.md) sets the floor for 0.1: each gate a required status check on main, with no bypass, run from main. This release does not reach that floor yet. The known limits below say where it falls short.
@@ -34,4 +34,4 @@ Status: 0.1.0-alpha.
 - There is no watchdog or escalation for a stalled or failed run; the receipt writer records failing checks in the receipt.
 - The release gate skips signature blocks in commit headers and tag trailers, because their random text matches short deny-list terms by chance. A commit crafted to hide text inside a fake signature header would pass the deny-list step.
 
-Skipped or not checked: nothing here has run on GitHub Actions, because no workflow exists. Model tokens per accepted change have not been measured. tiller-book has been run on this repository and on throwaway test repositories only.
+Skipped or not checked: only the docs-lint workflow has run on GitHub Actions; the `tlb` checks have not. Model tokens per accepted change have not been measured. tiller-book has been run on this repository and on throwaway test repositories only.

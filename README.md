@@ -13,7 +13,7 @@ Real `tlb` output from a test repository: a commit outside the plan fails with t
 
 Status: 0.1.0-alpha. Checks run when someone runs them. No CI gate (an automatic check on GitHub) blocks a merge yet.
 
-## Why tiller-book
+## Why
 
 For anyone who lets coding agents change a repository and decides whether to merge the result.
 
@@ -94,7 +94,7 @@ Why an agent cannot widen its own limit. The checks read the limit from `origin/
 
 [Every known limit](docs/status-and-limits.md) is listed with what is enforced today.
 
-## Documentation
+## Docs
 
 - [How it works](docs/how-it-works.md): who it is for, the three concepts, and what a receipt records.
 - [Use it in your own repository](docs/use-in-your-repo.md): the steps, with their output.

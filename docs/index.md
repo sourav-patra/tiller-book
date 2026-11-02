@@ -9,6 +9,5 @@ Check an agent's work against a plan a person signed, and keep a receipt for eve
 - [Commands](commands.md): every `tlb` command and option.
 - [Status and limits](status-and-limits.md): what is enforced now, what is not yet, and every known limit.
 - [Comparison](comparison.md): nearby projects, described in their own terms.
-- [Writing rules for the README](entry-pages.md).
 
 Source and quick start: [README](https://github.com/sourav-patra/tiller-book/blob/main/README.md). Contributing: [CONTRIBUTING.md](https://github.com/sourav-patra/tiller-book/blob/main/CONTRIBUTING.md). Vision: [VISION.md](https://github.com/sourav-patra/tiller-book/blob/main/VISION.md).
