@@ -68,4 +68,4 @@ The checks read the limit from `origin/main` and the work from the branch, so a 
 
 The edit counts as one more changed path: in a build it fails unless the signed plan allows that path. A change made only of plan files passes these checks, and such a plan counts only once a signed commit brings it onto main.
 
-All of this depends on who can merge, which tiller-book does not control.
+All of this depends on who can merge, and on the machine the checks run on. tiller-book controls neither: the checks read the local `origin/main` reference and do not authenticate it against GitHub.

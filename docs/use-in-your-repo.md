@@ -2,7 +2,7 @@
 
 You need Python 3.11 or later, git, `ssh-keygen` and `gitleaks` on `PATH`, and a full clone (not shallow) with `origin` pointing at the repository. The release gate also needs `grep` on `PATH`. A missing tool makes its check fail; nothing is skipped.
 
-Install `tlb` into your project's environment. To pin a release, replace `main` with its tag.
+Install `tlb` into your project's environment. To pin a release, replace `main` with its tag. In the commands below, replace each `<...>` with your own value.
 
 ```sh
 pip install "tiller-book[test] @ git+https://github.com/sourav-patra/tiller-book.git@main"

@@ -21,6 +21,8 @@ Status: 0.1.0-alpha.
 
 - CODEOWNERS only requests a review from the owner and enforces nothing.
 - tiller-book does not control who can merge. An agent that can merge to main can change `.github/allowed_signers` and sign its own plans, so keep the merge right with a person.
+- The checks read plans and signing keys from the local `origin/main` reference and do not authenticate it against GitHub. An agent that controls the machine can change that reference or the checker code, so run the checks where it cannot.
+- A PASS does not mean the change is correct. A person still reads it and decides.
 - The ruleset on main keeps the owner's bypass actors, so an admin push skips the pull-request gates, though `tlb plan verify` still checks plan signatures.
 - Path scope compares the merge base with `HEAD`, so a path changed and then reverted on the branch does not appear.
 - The receipt check proves the receipt's shape and its binding to the head commit, not that the listed checks ran.
