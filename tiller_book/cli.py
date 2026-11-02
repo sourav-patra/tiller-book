@@ -7,7 +7,7 @@ from pathlib import Path
 
 from tiller_book.checks import aggregate, line, registry, run_check
 from tiller_book.plan.verify import CouldNotRun, verify_plan
-from tiller_book.release import gate
+from tiller_book.release import gate, scan
 from tiller_book.receipt import write as receipt
 
 
@@ -30,6 +30,9 @@ def main(argv=None):
     gate_cmd.add_argument("--denylist", required=True,
                           help="file of grep patterns, one per line, kept outside the repository")
     gate_cmd.add_argument("--repo", default=".", help="repository path (default the current directory)")
+    scan_cmd = release.add_parser("scan", help="exit 0 only if the deny-list, identity and leak steps pass; runs no repository code")
+    scan_cmd.add_argument("--denylist", required=True, help="file of grep patterns, one per line")
+    scan_cmd.add_argument("--repo", default=".", help="repository path (default the current directory)")
     receipts = sub.add_parser("receipt", help="receipts").add_subparsers(dest="receipt_command", required=True)
     rw = receipts.add_parser("write", help="write receipts/<unit>.json for HEAD; commit it alone as the last commit")
     rw.add_argument("unit")
@@ -46,7 +49,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     if args.command == "release":
-        return release_gate(Path(args.repo), args.denylist)
+        return release_steps(Path(args.repo), args.denylist, gate if args.release_command == "gate" else scan)
     if args.command == "check":
         return check_run(Path(args.repo), args.json)
     if args.command == "receipt":
@@ -77,10 +80,10 @@ def check_run(repo, as_json):
     return code
 
 
-def release_gate(repo, denylist):
+def release_steps(repo, denylist, steps):
     if hasattr(sys.stdout, "reconfigure"):  # tool output may hold characters the console code page cannot encode
         sys.stdout.reconfigure(errors="backslashreplace")
-    results = gate(repo, denylist)
+    results = steps(repo, denylist)
     for name, ok, reason in results:
         print(f"{'PASS' if ok else 'FAIL'} {name}: {reason}")
     bad = [name for name, ok, _ in results if not ok]

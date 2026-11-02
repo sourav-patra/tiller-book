@@ -254,11 +254,8 @@ def checks(repo):
     return code == 0, verdict.split(": ", 1)[-1]
 
 
-def gate(repo, denylist_path):
+def _run_steps(repo, steps):
     """Return [(step name, passed, reason)] for every step, in order; an exception is a FAIL."""
-    steps = [("head", head_is_main), ("deny-list", partial(denylist, path=denylist_path)),
-             ("identities", identities), ("leak-scan", leak_scan), ("vision-lock", vision_lock),
-             ("checks", checks)]
     results, saved = [], os.environ.get(NO_REPLACE)
     os.environ[NO_REPLACE] = "1"  # every child (git, grep pipelines, gitleaks, checks) reads stored objects
     try:
@@ -276,3 +273,15 @@ def gate(repo, denylist_path):
         else:
             os.environ[NO_REPLACE] = saved
     return results
+
+
+def gate(repo, denylist_path):
+    return _run_steps(repo, [("head", head_is_main), ("deny-list", partial(denylist, path=denylist_path)),
+                             ("identities", identities), ("leak-scan", leak_scan), ("vision-lock", vision_lock),
+                             ("checks", checks)])
+
+
+def scan(repo, denylist_path):
+    """The gate's steps that read a repository as data and run none of its code, for a pull request in CI."""
+    return _run_steps(repo, [("deny-list", partial(denylist, path=denylist_path)),
+                             ("identities", identities), ("leak-scan", leak_scan)])
