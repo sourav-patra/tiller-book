@@ -26,7 +26,7 @@ Evidence: this repository contains 7 [signed plans](plans/) and 7 [receipts](rec
 ## Features
 
 - Signed plans: a plan counts only if a commit signed with a listed key put it on main.
-- Path scope: a change fails if its final diff includes a path its plan does not allow.
+- Path scope: a change fails if its final diff includes a path its plan does not allow. A change made only of plan files is exempt.
 - No silent skips: a check that fails, times out or cannot run counts as a failure.
 - Receipts: one file per unit (one planned change) records its commits, its checks and the model tokens the caller reports.
 - Release gate: a command to run by hand before going public. It scans the history for deny-listed text, personal email addresses and secrets.
@@ -34,9 +34,9 @@ Evidence: this repository contains 7 [signed plans](plans/) and 7 [receipts](rec
 
 ## Quick start
 
-You need Python 3.11 or later, git, `ssh-keygen` and `gitleaks` on `PATH`.
+These steps run `tlb` on tiller-book itself. You need Python 3.11 or later, git, `ssh-keygen` and `gitleaks` on `PATH`.
 
-1. Clone the repository and install it in a virtual environment. On Windows, use `python` and `.venv\Scriptsctivate`. The `[test]` extra installs pytest, which the `tests` check runs. `tlb --help` then lists the commands.
+1. Clone the repository and install it in a virtual environment. On Windows PowerShell, use `python` and `.venv\Scripts\Activate.ps1`. The `[test]` extra installs pytest, which the `tests` check runs. `tlb --help` then lists the commands.
 
    ```sh
    git clone https://github.com/sourav-patra/tiller-book.git
